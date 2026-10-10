@@ -1,4 +1,4 @@
-# Pong
+# Pong Fever
 
 A browser Pong game: you against the CPU, first to 7. It's plain HTML, CSS and JavaScript, with no build step and no dependencies.
 
