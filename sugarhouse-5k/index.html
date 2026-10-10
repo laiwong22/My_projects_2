@@ -162,7 +162,7 @@ td:not(:first-child), th:not(:first-child) { text-align: right; }
     <div class="panel map-panel">
       <svg id="map" viewBox="0 0 1000 760" role="img" aria-label="Map of the Sugar House 5K course around Sugar House Park, colored by grade"></svg>
       <div class="map-foot">
-        <span>Clockwise · 2 laps + 0.35 mi finish stretch</span>
+        <span>Counterclockwise · 2 laps + 0.35 mi finish stretch</span>
         <span>North is up</span>
         <a href="https://www.google.com/maps/search/?api=1&query=Sugar+House+Park+Salt+Lake+City" target="_blank" rel="noopener">Open park in Google Maps ↗</a>
       </div>
@@ -215,8 +215,8 @@ td:not(:first-child), th:not(:first-child) { text-align: right; }
   </section>
 
   <section class="details">
-    <div><h3>Start &amp; finish</h3><p>Start on the north side of the loop near the 2100 South entrance, running clockwise. Lap 2 begins when you pass the start arch. After lap 2, carry on 0.35 mi (558 m) to the finish on the northeast side.</p></div>
-    <div><h3>The hills</h3><p>Each lap has two climbs: a sharp pull up the southeast hill after crossing Parleys Creek, and a shorter rise on the northwest side past the pond. The long south side runs high and rolling.</p></div>
+    <div><h3>Start &amp; finish</h3><p>Start on the north side of the loop near the 2100 South entrance, running counterclockwise (heading west first). Lap 2 begins when you pass the start arch. After lap 2, carry on 0.35 mi (558 m) to the finish on the northwest side.</p></div>
+    <div><h3>The hills</h3><p>Each lap has two climbs: a long pull from the pond up around the southwest corner to the high ground along the south side, and a shorter rise up the east side after you drop down to Parleys Creek. The south side runs high and rolling.</p></div>
     <div><h3>About this map</h3><p>The loop is the park's inner paved road, 1.38 mi with about 92 ft of climbing per lap. The route line and elevation curve are drawn to those figures and are close but not survey-grade. Check the course with a GPS watch before race day.</p></div>
   </section>
 </div>
@@ -231,7 +231,9 @@ td:not(:first-child), th:not(:first-child) { text-align: right; }
   const STEP = 5;
   const FT = 3.28084;
 
-  // Loop road control points in local meters (x east, y north) from the park's SW corner. Clockwise from the north entrance.
+  // Loop road control points in local meters (x east, y north) from the park's SW corner, listed clockwise from the north entrance.
+  // The race runs the other way: CCW maps course fractions onto this list in reverse.
+  const CCW = true;
   const CP = [
     [330, 500], [470, 506], [600, 492], [705, 462], [768, 395], [782, 292], [762, 192], [702, 112],
     [600, 74], [480, 68], [360, 84], [240, 96], [140, 122], [80, 192], [68, 292], [94, 382], [158, 450], [240, 490]
@@ -247,6 +249,7 @@ td:not(:first-child), th:not(:first-child) { text-align: right; }
   for (let i = 1; i < EK.length; i++) rawGain += Math.max(0, EK[i][1] - EK[i - 1][1]);
   const ESCALE = 92 / rawGain;
   function elevAtFrac(t) {
+    if (CCW) t = 1 - t;
     t = ((t % 1) + 1) % 1;
     for (let i = 1; i < EK.length; i++) {
       if (t <= EK[i][0]) {
@@ -275,6 +278,7 @@ td:not(:first-child), th:not(:first-child) { text-align: right; }
   for (let i = 1; i < dense.length; i++) cum.push(cum[i - 1] + Math.hypot(dense[i][0] - dense[i - 1][0], dense[i][1] - dense[i - 1][1]));
   const RAW = cum[cum.length - 1];
   function posAtFrac(t) {
+    if (CCW) t = 1 - t;
     const target = (((t % 1) + 1) % 1) * RAW;
     let lo = 0, hi = cum.length - 1;
     while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (cum[mid] <= target) lo = mid; else hi = mid; }
@@ -338,9 +342,9 @@ td:not(:first-child), th:not(:first-child) { text-align: right; }
       ["Distance", units === "mi" ? "3.11 mi" : "5.00 km", units === "mi" ? "5.00 km" : "3.11 mi"],
       ["Laps", "2 + run-in", "1.38 mi loop · " + (FINISH_LOOP_M / M_PER_MI).toFixed(2) + " mi to finish"],
       ["Climbing", Math.round(gain) + " ft", Math.round(gain / FT) + " m total gain"],
-      ["High point", Math.round(hi).toLocaleString() + " ft", "Southeast hill"],
+      ["High point", Math.round(hi).toLocaleString() + " ft", "South side"],
       ["Low point", Math.round(lo).toLocaleString() + " ft", "Northwest, by the pond"],
-      ["Steepest", maxG.toFixed(1) + "%", "Southeast hill climb"]
+      ["Steepest", maxG.toFixed(1) + "%", "Southwest hill"]
     ];
     document.getElementById("stats").innerHTML = s.map(([k, v, sub]) => `<div class="stat"><span class="k">${k}</span><span class="v">${v}</span><span class="s">${sub}</span></div>`).join("");
   }
@@ -430,8 +434,8 @@ td:not(:first-child), th:not(:first-child) { text-align: right; }
       const t = el("text", { class: "lbl", "font-size": 11.5, "text-anchor": "middle", style: "font-weight:600;fill:var(--ink)" }, g);
       t.textContent = text;
     };
-    hill(0.40, "▲ Southeast hill", 70, 34);
-    hill(0.83, "▲ Pond rise", 62, 6);
+    hill(0.33, "▲ Southwest hill", 78, -26);
+    hill(0.74, "▲ East rise", -62, 4);
 
     markerLayer = el("g", {}, map);
     drawMarkers();
@@ -455,7 +459,7 @@ td:not(:first-child), th:not(:first-child) { text-align: right; }
     };
     for (let k = 1; k * unitM < COURSE_M - 50; k++) flag(k * unitM, String(k), "var(--ink)", 22);
     // Water stop on the south side, passed twice.
-    const wp = P(posAtFrac(1150 / LOOP_M));
+    const wp = P(posAtFrac(1071 / LOOP_M));
     const wg = el("g", { transform: `translate(${wp[0].toFixed(1)} ${(wp[1] + 30).toFixed(1)})` }, markerLayer);
     el("rect", { x: -38, y: -11, width: 76, height: 22, rx: 4, style: "fill:var(--surface);stroke:var(--g-down2);stroke-width:1.5" }, wg);
     const wt = el("text", { y: 4, "text-anchor": "middle", class: "lbl", "font-size": 11, style: "fill:var(--g-down2);font-weight:600" }, wg); wt.textContent = "💧 Water";
@@ -494,7 +498,7 @@ td:not(:first-child), th:not(:first-child) { text-align: right; }
     }
     el("path", { d: course.map((c, i) => (i ? "L" : "M") + px(c.d).toFixed(2) + " " + py(c.elev).toFixed(2)).join(" "), style: "fill:none;stroke:var(--ink);stroke-width:2;stroke-linejoin:round" }, prof);
     // Hill callouts at each lap's peaks
-    [[0.45, "SE hill"], [0.9, "Pond rise"]].forEach(([f, name]) => {
+    [[0.42, "SW hill"], [0.8, "East rise"]].forEach(([f, name]) => {
       for (let L = 0; L < 2; L++) {
         const d = (L + f) * LOOP_M, e = elevAtFrac(f);
         const t = el("text", { x: px(d), y: py(e) - 9, "text-anchor": "middle", class: "lbl", "font-size": 11, style: "fill:var(--ink);font-weight:600" }, prof);
