@@ -144,7 +144,7 @@ td:not(:first-child), th:not(:first-child) { text-align: right; }
   <header>
     <div class="eyebrow">Sugar House Park · 1330 E 2100 S · Salt Lake City, Utah</div>
     <h1>Holladay YSA <span class="bib">5K</span> Race Strategy</h1>
-    <p class="lede">Two laps of the park's main loop road, then a short run-in to the finish. Drag along the elevation profile or the map to see grade, elevation and your race clock at any point on the course.</p>
+    <p class="lede">Start and finish at the pavilion, run out to the pond, do two counterclockwise laps of the park, then come back the way you came. Drag along the elevation profile or the map to see grade, elevation and your race clock at any point on the course.</p>
     <div class="stats" id="stats"></div>
   </header>
 
@@ -160,9 +160,9 @@ td:not(:first-child), th:not(:first-child) { text-align: right; }
 
   <div class="main">
     <div class="panel map-panel">
-      <svg id="map" viewBox="0 0 1000 760" role="img" aria-label="Map of the Holladay YSA 5K course around Sugar House Park, colored by grade"></svg>
+      <svg id="map" viewBox="0 0 1000 764" role="img" aria-label="Map of the Holladay YSA 5K course around Sugar House Park, colored by grade"></svg>
       <div class="map-foot">
-        <span>Counterclockwise · 2 laps + 0.35 mi finish stretch</span>
+        <span>Counterclockwise · out, 2 laps, back</span>
         <span>North is up</span>
         <a href="https://www.google.com/maps/search/?api=1&query=Sugar+House+Park+Salt+Lake+City" target="_blank" rel="noopener">Open park in Google Maps ↗</a>
       </div>
@@ -207,7 +207,7 @@ td:not(:first-child), th:not(:first-child) { text-align: right; }
   <section class="panel profile-panel" aria-label="Elevation profile">
     <div class="profile-head">
       <h2>Elevation profile</h2>
-      <span id="profile-sub">Feet above sea level · 2 laps, 2 climbs per lap</span>
+      <span id="profile-sub">Feet above sea level · out, 2 laps, back</span>
     </div>
     <div class="profile-scroll">
       <svg id="profile" viewBox="0 0 1000 280" role="img" aria-label="Elevation profile of the 5K course"></svg>
@@ -215,9 +215,9 @@ td:not(:first-child), th:not(:first-child) { text-align: right; }
   </section>
 
   <section class="details">
-    <div><h3>Start &amp; finish</h3><p>Start on the north side of the loop near the 2100 South entrance, running counterclockwise (heading west first). Lap 2 begins when you pass the start arch. After lap 2, carry on 0.35 mi (558 m) to the finish on the northwest side.</p></div>
-    <div><h3>The hills</h3><p>Each lap has two climbs: a long pull from the pond up around the southwest corner to the high ground along the south side, and a shorter rise up the east side after you drop down to Parleys Creek. The south side runs high and rolling.</p></div>
-    <div><h3>About this map</h3><p>The loop is the park's inner paved road, 1.38 mi with about 92 ft of climbing per lap. The route line and elevation curve are drawn to those figures and are close but not survey-grade. Check the course with a GPS watch before race day.</p></div>
+    <div><h3>Start &amp; finish</h3><p>Start and finish are at the same spot, by the pavilion north of the pond. Run west about 0.18 mi on the path to the loop at the pond's northwest corner and turn left (south). Run two counterclockwise laps, then turn right at the same corner and run back to the finish.</p></div>
+    <div><h3>The hills</h3><p>Each lap has two climbs: a gradual pull from the pond up to the high south side, and the big one, from the Parleys Creek crossing on the east side up to the north end of the park. The north side then rolls back down to the pond. The last 0.18 mi back to the finish is a gentle uphill.</p></div>
+    <div><h3>About this map</h3><p>The route is traced from the course map you planned and scaled to 5.00 km. Elevations are modeled on the park's terrain, using its published figure of about 92 ft of climbing per loop. They're close but not survey-grade, so check the course with a GPS watch before race day.</p></div>
   </section>
 </div>
 
@@ -226,80 +226,123 @@ td:not(:first-child), th:not(:first-child) { text-align: right; }
   "use strict";
   const NS = "http://www.w3.org/2000/svg";
   const M_PER_MI = 1609.344;
-  const LOOP_M = 1.38 * M_PER_MI;          // 2220.9 m
   const COURSE_M = 5000;
   const STEP = 5;
   const FT = 3.28084;
 
-  // Loop road control points in local meters (x east, y north) from the park's SW corner, listed clockwise from the north entrance.
-  // The race runs the other way: CCW maps course fractions onto this list in reverse.
-  const CCW = true;
-  const CP = [
-    [330, 500], [470, 506], [600, 492], [705, 462], [768, 395], [782, 292], [762, 192], [702, 112],
-    [600, 74], [480, 68], [360, 84], [240, 96], [140, 122], [80, 192], [68, 292], [94, 382], [158, 450], [240, 490]
+  // ---------- Course geometry ----------
+  // Traced from the planned course map, in its pixel space (x east, y south; 560 × 428 frame).
+  // Start/finish by the pavilion, out the path to the pond corner (J), two counterclockwise laps, back the same path.
+  const SPUR = [[242, 162], [205, 159], [165, 153], [120, 149], [75, 148]];
+  const LOOP = [
+    [75, 148], [78, 182], [88, 215], [105, 250], [130, 284], [165, 310], [210, 329], [255, 339], [300, 345],
+    [337, 355], [372, 370], [410, 380], [443, 381], [459, 368], [456, 350], [438, 340], [400, 330], [372, 316],
+    [357, 296], [359, 270], [368, 240], [376, 207], [388, 180], [406, 153], [421, 124], [430, 96], [431, 76],
+    [414, 68], [385, 68], [340, 72], [300, 78], [258, 86], [222, 94], [200, 96], [180, 84], [150, 78],
+    [122, 86], [96, 106], [80, 128]
   ];
+  const WATER = [[195, 82], [350, 290]];
+  const PHOTO = [75, 148];
 
-  // Elevation keyframes along the loop (fraction of lap, feet). Scaled below so each lap climbs 92 ft.
-  const EK = [
-    [0, 4352], [0.08, 4356], [0.2, 4372], [0.27, 4362], [0.33, 4350], [0.45, 4398],
-    [0.52, 4393], [0.58, 4399], [0.75, 4340], [0.9, 4362], [1, 4352]
-  ];
-  const BASE = 4352;
-  let rawGain = 0;
-  for (let i = 1; i < EK.length; i++) rawGain += Math.max(0, EK[i][1] - EK[i - 1][1]);
-  const ESCALE = 92 / rawGain;
-  function elevAtFrac(t) {
-    if (CCW) t = 1 - t;
-    t = ((t % 1) + 1) % 1;
-    for (let i = 1; i < EK.length; i++) {
-      if (t <= EK[i][0]) {
-        const [t0, e0] = EK[i - 1], [t1, e1] = EK[i];
-        const u = (t - t0) / (t1 - t0);
-        const s = 0.45 * u + 0.55 * (1 - Math.cos(Math.PI * u)) / 2;
-        return BASE + (e0 + (e1 - e0) * s - BASE) * ESCALE;
+  function spline(pts, closed) {
+    const out = [], N = pts.length;
+    const g = (i) => closed ? pts[(i + N) % N] : pts[Math.max(0, Math.min(N - 1, i))];
+    const segs = closed ? N : N - 1;
+    for (let i = 0; i < segs; i++) {
+      const p0 = g(i - 1), p1 = g(i), p2 = g(i + 1), p3 = g(i + 2);
+      for (let k = 0; k < 16; k++) {
+        const t = k / 16, t2 = t * t, t3 = t2 * t;
+        const f = (a, b, c, d) => 0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
+        out.push([f(p0[0], p1[0], p2[0], p3[0]), f(p0[1], p1[1], p2[1], p3[1])]);
       }
     }
-    return BASE;
+    out.push(closed ? pts[0] : pts[N - 1]);
+    return out;
   }
-
-  // Closed Catmull-Rom spline through CP, with cumulative length for lookup.
-  const dense = [];
-  const n = CP.length;
-  for (let i = 0; i < n; i++) {
-    const p0 = CP[(i - 1 + n) % n], p1 = CP[i], p2 = CP[(i + 1) % n], p3 = CP[(i + 2) % n];
-    for (let k = 0; k < 24; k++) {
-      const t = k / 24, t2 = t * t, t3 = t2 * t;
-      const f = (a, b, c, d) => 0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
-      dense.push([f(p0[0], p1[0], p2[0], p3[0]), f(p0[1], p1[1], p2[1], p3[1])]);
-    }
-  }
-  dense.push(dense[0]);
+  const spur = spline(SPUR, false);
+  const loop = spline(LOOP, true);
+  const path = spur.concat(loop.slice(1), loop.slice(1), spur.slice().reverse().slice(1));
   const cum = [0];
-  for (let i = 1; i < dense.length; i++) cum.push(cum[i - 1] + Math.hypot(dense[i][0] - dense[i - 1][0], dense[i][1] - dense[i - 1][1]));
-  const RAW = cum[cum.length - 1];
-  function posAtFrac(t) {
-    if (CCW) t = 1 - t;
-    const target = (((t % 1) + 1) % 1) * RAW;
+  for (let i = 1; i < path.length; i++) cum.push(cum[i - 1] + Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]));
+  const PATH_PX = cum[cum.length - 1];
+  const MPP = COURSE_M / PATH_PX;                     // meters per traced pixel; scales the whole course to 5.00 km
+  const pxLen = (a) => a.reduce((s, p, i) => i ? s + Math.hypot(p[0] - a[i - 1][0], p[1] - a[i - 1][1]) : 0, 0);
+  const SPUR_M = pxLen(spur) * MPP;
+  const LOOP_M = pxLen(loop) * MPP;
+  const LAP1_AT = SPUR_M, LAP2_AT = SPUR_M + LOOP_M, BACK_AT = SPUR_M + 2 * LOOP_M;
+  function posAt(d) {
+    const target = Math.max(0, Math.min(COURSE_M, d)) / MPP;
     let lo = 0, hi = cum.length - 1;
     while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (cum[mid] <= target) lo = mid; else hi = mid; }
     const u = (target - cum[lo]) / (cum[hi] - cum[lo] || 1);
-    return [dense[lo][0] + (dense[hi][0] - dense[lo][0]) * u, dense[lo][1] + (dense[hi][1] - dense[lo][1]) * u];
+    return [path[lo][0] + (path[hi][0] - path[lo][0]) * u, path[lo][1] + (path[hi][1] - path[lo][1]) * u];
   }
 
-  // Course samples every 5 m.
-  const course = [];
-  for (let d = 0; d <= COURSE_M; d += STEP) {
-    const frac = d / LOOP_M;
-    const e = elevAtFrac(frac);
-    const g = ((elevAtFrac((d + 15) / LOOP_M) - elevAtFrac((d - 15) / LOOP_M)) / FT) / 30 * 100;
-    course.push({ d, frac, pos: posAtFrac(frac), elev: e, grade: d === 0 ? (elevAtFrac(15 / LOOP_M) - e) / FT / 15 * 100 : g, lap: d < LOOP_M ? 1 : d < 2 * LOOP_M ? 2 : 3 });
+  // ---------- Terrain model ----------
+  // The park is a bowl around Parleys Creek and the pond: lowest at the water, rising toward 2100 South and toward I-80.
+  const CREEK = [[96, 200], [150, 200], [200, 205], [260, 218], [330, 238], [390, 262], [440, 290], [490, 300], [560, 305]];
+  function creekInfo(p) {
+    let best = Infinity, bx = 0;
+    for (let i = 1; i < CREEK.length; i++) {
+      const a = CREEK[i - 1], b = CREEK[i], vx = b[0] - a[0], vy = b[1] - a[1];
+      const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * vx + (p[1] - a[1]) * vy) / (vx * vx + vy * vy)));
+      const qx = a[0] + vx * t, qy = a[1] + vy * t, dd = Math.hypot(p[0] - qx, p[1] - qy);
+      if (dd < best) { best = dd; bx = qx; }
+    }
+    return { dist: best, x: bx };
   }
-  let gain = 0, loss = 0, hi = -Infinity, lo = Infinity, maxG = 0;
+  function rawElev(p) {
+    const c = creekInfo(p);
+    const floor = 0.05 * (c.x - 96);                  // creek bed climbs gently upstream (east)
+    const m = Math.min(c.dist * MPP, 220);
+    const north = p[1] < 200 ? 1.1 : 1;                 // north bank rises a little more steeply
+    return floor + 0.14 * north * m;
+  }
+
+  // Sample, smooth, then scale the relief so one loop climbs about 92 ft (the park's published figure).
+  const N_SAMPLES = Math.round(COURSE_M / STEP) + 1;
+  const raw = [];
+  for (let i = 0; i < N_SAMPLES; i++) raw.push(rawElev(posAt(i * STEP)));
+  const W = 16;
+  const smooth = raw.map((_, i) => { let s = 0, n = 0; for (let k = -W; k <= W; k++) { const j = i + k; if (j >= 0 && j < raw.length) { s += raw[j]; n++; } } return s / n; });
+  let loopRawGain = 0;
+  for (let i = Math.round(LAP1_AT / STEP) + 1; i <= Math.round(LAP2_AT / STEP); i++) loopRawGain += Math.max(0, smooth[i] - smooth[i - 1]);
+  const RELIEF = 92 / loopRawGain;
+  const BASE = 4338;
+
+  const course = [];
+  for (let i = 0; i < N_SAMPLES; i++) {
+    const d = i * STEP;
+    const elev = BASE + smooth[i] * RELIEF;
+    const seg = d < LAP1_AT ? 0 : d < LAP2_AT ? 1 : d < BACK_AT ? 2 : 3;
+    course.push({ d, pos: posAt(d), elev, seg });
+  }
   course.forEach((c, i) => {
-    hi = Math.max(hi, c.elev); lo = Math.min(lo, c.elev); maxG = Math.max(maxG, c.grade);
-    if (i) { const de = c.elev - course[i - 1].elev; if (de > 0) gain += de; else loss -= de; }
+    const a = course[Math.max(0, i - 3)], b = course[Math.min(course.length - 1, i + 3)];
+    c.grade = (b.elev - a.elev) / FT / (b.d - a.d) * 100;
   });
-  const FINISH_LOOP_M = COURSE_M - 2 * LOOP_M;
+  let gain = 0, hi = -Infinity, lo = Infinity, maxG = 0, hiAt = 0, loAt = 0, maxGAt = 0;
+  course.forEach((c, i) => {
+    if (c.elev > hi) { hi = c.elev; hiAt = i; }
+    if (c.elev < lo) { lo = c.elev; loAt = i; }
+    if (c.grade > maxG) { maxG = c.grade; maxGAt = i; }
+    if (i) gain += Math.max(0, c.elev - course[i - 1].elev);
+  });
+
+  // Named climbs on each lap, found from the profile: rises of 15 ft or more between a low and the next high.
+  function findClimbs(fromD, toD) {
+    const out = []; let low = null, high = null;
+    for (let i = Math.round(fromD / STEP); i <= Math.round(toD / STEP); i++) {
+      const c = course[i];
+      if (low === null || c.elev < low.elev) { if (high && high.elev - low.elev >= 15) out.push({ low, high }); low = c; high = null; }
+      else if (!high || c.elev >= high.elev) high = c;
+      else if (high.elev - c.elev > 6) { if (high.elev - low.elev >= 15) out.push({ low, high }); low = c; high = null; }
+    }
+    if (high && high.elev - low.elev >= 15) out.push({ low, high });
+    return out;
+  }
+  const climbs = [findClimbs(LAP1_AT, LAP2_AT), findClimbs(LAP2_AT, BACK_AT)];
+  const climbName = (cl) => (cl.high.pos[1] < 150 ? "North hill" : "South rise");
 
   function gradeColor(g) {
     if (g < -3) return "var(--g-down2)";
@@ -308,7 +351,6 @@ td:not(:first-child), th:not(:first-child) { text-align: right; }
     if (g <= 3) return "var(--g-up)";
     return "var(--g-up2)";
   }
-
   // State
   let units = "mi";
   let goalSec = 1500;
@@ -340,19 +382,19 @@ td:not(:first-child), th:not(:first-child) { text-align: right; }
   function renderStats() {
     const s = [
       ["Distance", units === "mi" ? "3.11 mi" : "5.00 km", units === "mi" ? "5.00 km" : "3.11 mi"],
-      ["Laps", "2 + run-in", "1.38 mi loop · " + (FINISH_LOOP_M / M_PER_MI).toFixed(2) + " mi to finish"],
+      ["Laps", "2", fmtDist(LOOP_M) + " loop · " + fmtDist(SPUR_M) + " out and back"],
       ["Climbing", Math.round(gain) + " ft", Math.round(gain / FT) + " m total gain"],
-      ["High point", Math.round(hi).toLocaleString() + " ft", "South side"],
-      ["Low point", Math.round(lo).toLocaleString() + " ft", "Northwest, by the pond"],
-      ["Steepest", maxG.toFixed(1) + "%", "Southwest hill"]
+      ["High point", Math.round(hi).toLocaleString() + " ft", "North end of the park"],
+      ["Low point", Math.round(lo).toLocaleString() + " ft", "By the pond"],
+      ["Steepest", maxG.toFixed(1) + "%", "North hill climb"]
     ];
     document.getElementById("stats").innerHTML = s.map(([k, v, sub]) => `<div class="stat"><span class="k">${k}</span><span class="v">${v}</span><span class="s">${sub}</span></div>`).join("");
   }
 
   // ---------- Map ----------
   const map = document.getElementById("map");
-  const MX = 85, MY = 690, MS = 1.0;              // local meters → SVG units
-  const P = (p) => [MX + p[0] * MS, MY - p[1] * MS];
+  const K = 1000 / 560;                                // traced pixels → SVG units
+  const P = (p) => [p[0] * K, p[1] * K];
   function el(tag, attrs, parent) {
     const e = document.createElementNS(NS, tag);
     for (const k in attrs) e.setAttribute(k, attrs[k]);
@@ -360,82 +402,86 @@ td:not(:first-child), th:not(:first-child) { text-align: right; }
     return e;
   }
   const pathD = (pts) => pts.map((p, i) => (i ? "L" : "M") + P(p)[0].toFixed(1) + " " + P(p)[1].toFixed(1)).join(" ");
+  const smoothD = (pts, closed) => pathD(spline(pts, closed)) + (closed ? "Z" : "");
 
   let mapDot, mapDotRing, markerLayer;
   function drawMap() {
     map.innerHTML = "";
-    el("rect", { x: 0, y: 0, width: 1000, height: 760, style: "fill:var(--bg)" }, map);
-    // Streets
-    const streets = el("g", {}, map);
-    const street = (x1, y1, x2, y2, w, fill, edge) => {
-      el("line", { x1, y1, x2, y2, style: `stroke:${edge};stroke-width:${w + 3};stroke-linecap:square` }, streets);
-      el("line", { x1, y1, x2, y2, style: `stroke:${fill};stroke-width:${w};stroke-linecap:square` }, streets);
-    };
-    street(0, 52, 1000, 52, 18, "var(--street)", "var(--street-edge)");         // 2100 South
-    street(52, 0, 52, 760, 16, "var(--street)", "var(--street-edge)");         // 1300 East
-    street(948, 0, 948, 760, 16, "var(--street)", "var(--street-edge)");       // 1700 East
-    street(0, 728, 1000, 728, 26, "var(--freeway)", "var(--freeway-edge)");    // I-80
+    map.setAttribute("viewBox", "0 0 1000 764");
+    el("rect", { x: 0, y: 0, width: 1000, height: 764, style: "fill:var(--bg)" }, map);
     // Park ground
-    el("rect", { x: 70, y: 68, width: 862, height: 642, rx: 18, style: "fill:var(--grass)" }, map);
-    // Trees (seeded scatter, kept off the loop)
-    let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    el("path", { d: smoothD([[30, 54], [300, 52], [560, 50], [560, 428], [232, 428], [192, 390], [142, 360], [64, 346], [30, 330]], true), style: "fill:var(--grass)" }, map);
+    // Highland High fields east of the course
+    const fx = P([440, 150]);
+    el("rect", { x: fx[0], y: fx[1], width: 120 * K, height: 160 * K, rx: 8, style: "fill:var(--street);stroke:var(--street-edge)" }, map);
+    const tc = P([470, 240]);
+    el("rect", { x: tc[0] - 22 * K, y: tc[1] - 52 * K, width: 44 * K, height: 104 * K, rx: 22 * K, style: "fill:none;stroke:var(--g-up2);stroke-width:7;opacity:.35" }, map);
+    // Streets
+    const road = (pts, w, fill, edge) => {
+      el("path", { d: smoothD(pts, false), style: `fill:none;stroke:${edge};stroke-width:${w + 3};stroke-linecap:butt` }, map);
+      el("path", { d: smoothD(pts, false), style: `fill:none;stroke:${fill};stroke-width:${w};stroke-linecap:butt` }, map);
+    };
+    road([[0, 42], [300, 40], [560, 38]], 18, "var(--street)", "var(--street-edge)");           // 2100 South
+    road([[20, 0], [20, 428]], 14, "var(--street)", "var(--street-edge)");                     // 1300 East
+    road([[0, 352], [70, 343], [130, 352], [180, 380], [222, 428]], 22, "var(--freeway)", "var(--freeway-edge)"); // I-80
+    // Trees, kept off the route and the pond
+    let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
     const trees = el("g", {}, map);
-    for (let i = 0; i < 260; i++) {
-      const x = 80 + rnd() * 842, y = 78 + rnd() * 622;
-      const lx = (x - MX) / MS, ly = (MY - y) / MS;
+    const pondC = [140, 198];
+    for (let i = 0; i < 320; i++) {
+      const x = 34 + rnd() * 520, y = 56 + rnd() * 368;
+      if (x > 432 && y > 142 && y < 318) continue;
+      if (y > 340 && x < 230 - (y - 340) * 0.2) continue;
+      if (Math.hypot((x - pondC[0]) / 62, (y - pondC[1]) / 46) < 1.1) continue;
       let near = false;
-      for (let j = 0; j < dense.length; j += 3) if (Math.hypot(dense[j][0] - lx, dense[j][1] - ly) < 22) { near = true; break; }
+      for (let j = 0; j < path.length; j += 2) if (Math.hypot(path[j][0] - x, path[j][1] - y) < 12) { near = true; break; }
       if (near) continue;
-      if (Math.hypot((lx - 215) / 95, (ly - 318) / 62) < 1.15) continue;
-      el("circle", { cx: x.toFixed(1), cy: y.toFixed(1), r: (4 + rnd() * 6).toFixed(1), style: "fill:var(--tree);opacity:.75" }, trees);
+      const c = P([x, y]);
+      el("circle", { cx: c[0].toFixed(1), cy: c[1].toFixed(1), r: (3 + rnd() * 5).toFixed(1), style: "fill:var(--tree);opacity:.7" }, trees);
     }
     // Inner meadow
-    el("path", { d: pathD(dense) + "Z", style: "fill:var(--grass-2);opacity:.6" }, map);
+    el("path", { d: pathD(loop) + "Z", style: "fill:var(--grass-2);opacity:.55" }, map);
     // Parleys Creek and Fabian Lagoon
-    const creek = [[860, 150], [770, 158], [700, 176], [610, 214], [520, 232], [430, 258], [350, 290], [292, 312]];
-    el("path", { d: "M" + creek.map((p) => P(p).map((v) => v.toFixed(1)).join(" ")).join(" L"), style: "fill:none;stroke:var(--water-edge);stroke-width:5;stroke-linecap:round;stroke-linejoin:round" }, map);
-    const pc = P([215, 318]);
-    el("ellipse", { cx: pc[0], cy: pc[1], rx: 92, ry: 56, transform: `rotate(-12 ${pc[0]} ${pc[1]})`, style: "fill:var(--water);stroke:var(--water-edge);stroke-width:2" }, map);
-    const lb = (x, y, t, cls, extra) => { const e = el("text", Object.assign({ x, y, class: cls }, extra || {}), map); e.textContent = t; return e; };
-    lb(pc[0], pc[1] + 4, "Fabian Lagoon", "lbl", { "text-anchor": "middle", "font-size": 11 });
-    const cl = P([560, 205]);
-    lb(cl[0], cl[1] + 22, "Parleys Creek", "lbl", { "text-anchor": "middle", "font-size": 11, "font-style": "italic" });
-    const pk = P([470, 300]);
-    lb(pk[0], pk[1], "SUGAR HOUSE PARK", "park-lbl", { "text-anchor": "middle" });
-    lb(500, 44, "2100 South", "street-lbl", { "text-anchor": "middle" });
-    lb(500, 756, "Interstate 80", "street-lbl", { "text-anchor": "middle" });
-    lb(30, 380, "1300 East", "street-lbl", { "text-anchor": "middle", transform: "rotate(-90 30 380)" });
-    lb(974, 380, "1700 East", "street-lbl", { "text-anchor": "middle", transform: "rotate(90 974 380)" });
+    el("path", { d: smoothD(CREEK, false), style: "fill:none;stroke:var(--water-edge);stroke-width:5;stroke-linecap:round;stroke-linejoin:round" }, map);
+    el("path", { d: smoothD([[92, 162], [140, 160], [178, 172], [190, 196], [176, 214], [146, 226], [118, 240], [100, 236], [90, 214], [86, 188]], true), style: "fill:var(--water);stroke:var(--water-edge);stroke-width:2" }, map);
+    const lb = (p, t, cls, extra) => { const q = P(p); const e = el("text", Object.assign({ x: q[0], y: q[1], class: cls }, extra || {}), map); e.textContent = t; return e; };
+    lb([138, 203], "Fabian Lagoon", "lbl", { "text-anchor": "middle", "font-size": 11 });
+    lb([300, 248], "Parleys Creek", "lbl", { "text-anchor": "middle", "font-size": 11, "font-style": "italic", transform: `rotate(17 ${300 * K} ${248 * K})` });
+    lb([255, 278], "SUGAR HOUSE PARK", "park-lbl", { "text-anchor": "middle" });
+    lb([500, 166], "Highland High", "lbl", { "text-anchor": "middle", "font-size": 11 });
+    lb([280, 31], "2100 South", "street-lbl", { "text-anchor": "middle" });
+    lb([12, 260], "1300 East", "street-lbl", { "text-anchor": "middle", transform: `rotate(-90 ${12 * K} ${260 * K})` });
+    lb([118, 372], "I-80 · Parleys Trail", "street-lbl", { "text-anchor": "middle", transform: `rotate(12 ${118 * K} ${372 * K})` });
     // North arrow
-    const na = el("g", { transform: "translate(905 112)" }, map);
+    const na = el("g", { transform: `translate(${515 * K} ${85 * K})` }, map);
     el("circle", { r: 18, style: "fill:var(--surface);stroke:var(--line)" }, na);
     el("path", { d: "M0 -11 L6 6 L0 2 L-6 6Z", style: "fill:var(--ink)" }, na);
     const nt = el("text", { y: 32, "text-anchor": "middle", class: "lbl", "font-size": 11 }, na); nt.textContent = "N";
 
-    // Route: casing then grade-colored segments (one lap; both laps share the road).
-    const lap = course.filter((c) => c.d <= LOOP_M + STEP);
-    el("path", { d: pathD(dense), style: "fill:none;stroke:var(--casing);stroke-width:17;stroke-linejoin:round" }, map);
+    // Route: casing, then grade-colored segments for the out leg and lap 1 (lap 2 and the return share the same ground).
+    el("path", { d: pathD(loop), style: "fill:none;stroke:var(--casing);stroke-width:17;stroke-linejoin:round" }, map);
+    el("path", { d: pathD(spur), style: "fill:none;stroke:var(--casing);stroke-width:17;stroke-linecap:round" }, map);
     const segs = el("g", {}, map);
-    for (let i = 1; i < lap.length; i++) {
-      const a = P(lap[i - 1].pos), b = P(lap[i].pos);
-      el("line", { x1: a[0].toFixed(1), y1: a[1].toFixed(1), x2: b[0].toFixed(1), y2: b[1].toFixed(1), style: `stroke:${gradeColor(lap[i].grade)};stroke-width:11;stroke-linecap:round` }, segs);
+    const drawn = course.filter((c) => c.d <= LAP2_AT + STEP);
+    for (let i = 1; i < drawn.length; i++) {
+      const a = P(drawn[i - 1].pos), b = P(drawn[i].pos);
+      el("line", { x1: a[0].toFixed(1), y1: a[1].toFixed(1), x2: b[0].toFixed(1), y2: b[1].toFixed(1), style: `stroke:${gradeColor(drawn[i].grade)};stroke-width:11;stroke-linecap:round` }, segs);
     }
-    // Direction chevrons
+    // Direction chevrons around the loop
     const chev = el("g", {}, map);
-    for (let m = 140; m < LOOP_M; m += 280) {
-      const a = P(posAtFrac(m / LOOP_M)), b = P(posAtFrac((m + 6) / LOOP_M));
+    for (let m = LAP1_AT + 120; m < LAP2_AT - 60; m += 260) {
+      const a = P(posAt(m)), b = P(posAt(m + 6));
       const ang = Math.atan2(b[1] - a[1], b[0] - a[0]) * 180 / Math.PI;
       el("path", { d: "M-3 -4 L2 0 L-3 4", transform: `translate(${a[0].toFixed(1)} ${a[1].toFixed(1)}) rotate(${ang.toFixed(1)})`, style: "fill:none;stroke:var(--casing);stroke-width:2;stroke-linecap:round;stroke-linejoin:round" }, chev);
     }
-    // Hill labels
-    const hill = (frac, text, dx, dy) => {
-      const p = P(posAtFrac(frac));
-      const g = el("g", { transform: `translate(${(p[0] + dx).toFixed(1)} ${(p[1] + dy).toFixed(1)})` }, map);
-      const t = el("text", { class: "lbl", "font-size": 11.5, "text-anchor": "middle", style: "font-weight:600;fill:var(--ink)" }, g);
-      t.textContent = text;
-    };
-    hill(0.33, "▲ Southwest hill", 78, -26);
-    hill(0.74, "▲ East rise", -62, 4);
+    // Climb labels (lap 1 positions; lap 2 is identical)
+    climbs[0].forEach((cl) => {
+      const mid = course[Math.round((course.indexOf(cl.low) + course.indexOf(cl.high)) / 2)];
+      const north = climbName(cl) === "North hill";
+      const p = P(mid.pos);
+      const t = el("text", { x: (p[0] + (north ? -78 : 0)).toFixed(1), y: (p[1] + (north ? 4 : -22)).toFixed(1), class: "lbl", "font-size": 11.5, "text-anchor": "middle", style: "font-weight:600;fill:var(--ink)" }, map);
+      t.textContent = "▲ " + climbName(cl);
+    });
 
     markerLayer = el("g", {}, map);
     drawMarkers();
@@ -443,69 +489,64 @@ td:not(:first-child), th:not(:first-child) { text-align: right; }
     mapDotRing = el("circle", { r: 14, style: "fill:var(--accent);opacity:.22" }, map);
     mapDot = el("circle", { r: 7, style: "fill:var(--accent);stroke:var(--casing);stroke-width:3" }, map);
     // Hit target for scrubbing
-    el("path", { d: pathD(dense) + "Z", style: "fill:none;stroke:transparent;stroke-width:40;cursor:crosshair;pointer-events:stroke" }, map).id = "map-hit";
+    el("path", { d: pathD(loop) + "Z " + pathD(spur), style: "fill:none;stroke:transparent;stroke-width:40;cursor:crosshair;pointer-events:stroke" }, map);
   }
 
   function drawMarkers() {
     markerLayer.innerHTML = "";
     const unitM = units === "mi" ? M_PER_MI : 1000;
-    const flag = (d, label, fill, w) => {
-      const p = P(posAtFrac(d / LOOP_M));
-      const g = el("g", { transform: `translate(${p[0].toFixed(1)} ${p[1].toFixed(1)})` }, markerLayer);
+    const flagAt = (pt, label, fill, w, dy) => {
+      const p = P(pt);
+      const g = el("g", { transform: `translate(${p[0].toFixed(1)} ${(p[1] + (dy || 0)).toFixed(1)})` }, markerLayer);
       el("rect", { x: -w / 2, y: -10, width: w, height: 20, rx: 10, style: `fill:${fill};stroke:var(--casing);stroke-width:2.5` }, g);
       const t = el("text", { y: 4.5, "text-anchor": "middle", class: "mk-txt" }, g);
       t.textContent = label;
       return g;
     };
-    for (let k = 1; k * unitM < COURSE_M - 50; k++) flag(k * unitM, String(k), "var(--ink)", 22);
-    // Water stop on the south side, passed twice.
-    const wp = P(posAtFrac(1071 / LOOP_M));
-    const wg = el("g", { transform: `translate(${wp[0].toFixed(1)} ${(wp[1] + 30).toFixed(1)})` }, markerLayer);
-    el("rect", { x: -38, y: -11, width: 76, height: 22, rx: 4, style: "fill:var(--surface);stroke:var(--g-down2);stroke-width:1.5" }, wg);
-    const wt = el("text", { y: 4, "text-anchor": "middle", class: "lbl", "font-size": 11, style: "fill:var(--g-down2);font-weight:600" }, wg); wt.textContent = "💧 Water";
-    flag(0, "START", "var(--accent)", 58);
-    const f = flag(FINISH_LOOP_M, "FINISH", "var(--g-up2)", 62);
-    f.setAttribute("transform", f.getAttribute("transform") + " translate(0 -24)");
+    const icon = (pt, glyph, fill) => {
+      const p = P(pt);
+      const g = el("g", { transform: `translate(${p[0].toFixed(1)} ${p[1].toFixed(1)})` }, markerLayer);
+      el("circle", { r: 13, style: `fill:${fill};stroke:var(--casing);stroke-width:3` }, g);
+      const t = el("text", { y: 5, "text-anchor": "middle", "font-size": 13 }, g); t.textContent = glyph;
+    };
+    for (let k = 1; k * unitM < COURSE_M - 50; k++) flagAt(posAt(k * unitM), String(k), "var(--ink)", 22);
+    WATER.forEach((w) => icon(w, "💧", "var(--surface)"));
+    icon(PHOTO, "📷", "var(--surface)");
+    const sp = P(SPUR[0]);
+    el("circle", { cx: sp[0], cy: sp[1], r: 10, style: "fill:var(--g-down);stroke:var(--casing);stroke-width:3" }, markerLayer);
+    flagAt(SPUR[0], "START · FINISH", "var(--accent)", 118, 26);
   }
 
   // ---------- Profile ----------
   const prof = document.getElementById("profile");
   const PL = 52, PR = 984, PT = 26, PB = 236;
-  let eMin, eMax, pCursor, pCursorDot, pLabel;
+  let eMin, eMax, pCursor, pCursorDot;
   const px = (d) => PL + d / COURSE_M * (PR - PL);
   const py = (e) => PB - (e - eMin) / (eMax - eMin) * (PB - PT);
   function drawProfile() {
     prof.innerHTML = "";
-    eMin = Math.floor((lo - 8) / 10) * 10; eMax = Math.ceil((hi + 12) / 10) * 10;
+    eMin = Math.floor((lo - 8) / 10) * 10; eMax = Math.ceil((hi + 14) / 10) * 10;
     el("rect", { x: 0, y: 0, width: 1000, height: 280, style: "fill:var(--surface)" }, prof);
-    // Grid + y labels
     for (let e = eMin; e <= eMax; e += 10) {
       el("line", { x1: PL, x2: PR, y1: py(e), y2: py(e), style: "stroke:var(--line);stroke-width:1" }, prof);
       const t = el("text", { x: PL - 8, y: py(e) + 4, "text-anchor": "end", class: "lbl", "font-size": 11 }, prof);
       t.textContent = e.toLocaleString();
     }
-    // Lap bands
-    [[0, LOOP_M, "LAP 1"], [LOOP_M, 2 * LOOP_M, "LAP 2"], [2 * LOOP_M, COURSE_M, "RUN-IN"]].forEach(([a, b, name], i) => {
+    [[0, LAP1_AT, "OUT"], [LAP1_AT, LAP2_AT, "LAP 1"], [LAP2_AT, BACK_AT, "LAP 2"], [BACK_AT, COURSE_M, "BACK"]].forEach(([a, b, name], i) => {
       if (i) el("line", { x1: px(a), x2: px(a), y1: PT - 14, y2: PB, style: "stroke:var(--muted);stroke-width:1;stroke-dasharray:3 4" }, prof);
       const t = el("text", { x: (px(a) + px(b)) / 2, y: PT - 8, "text-anchor": "middle", class: "lbl", "font-size": 11, style: "letter-spacing:.12em;font-weight:600" }, prof);
       t.textContent = name;
     });
-    // Grade-colored fill
     const fill = el("g", {}, prof);
     for (let i = 1; i < course.length; i++) {
       const a = course[i - 1], b = course[i];
       el("path", { d: `M${px(a.d).toFixed(2)} ${PB} L${px(a.d).toFixed(2)} ${py(a.elev).toFixed(2)} L${px(b.d).toFixed(2)} ${py(b.elev).toFixed(2)} L${px(b.d).toFixed(2)} ${PB}Z`, style: `fill:${gradeColor(b.grade)};stroke:${gradeColor(b.grade)};stroke-width:.6;opacity:.55` }, fill);
     }
     el("path", { d: course.map((c, i) => (i ? "L" : "M") + px(c.d).toFixed(2) + " " + py(c.elev).toFixed(2)).join(" "), style: "fill:none;stroke:var(--ink);stroke-width:2;stroke-linejoin:round" }, prof);
-    // Hill callouts at each lap's peaks
-    [[0.42, "SW hill"], [0.8, "East rise"]].forEach(([f, name]) => {
-      for (let L = 0; L < 2; L++) {
-        const d = (L + f) * LOOP_M, e = elevAtFrac(f);
-        const t = el("text", { x: px(d), y: py(e) - 9, "text-anchor": "middle", class: "lbl", "font-size": 11, style: "fill:var(--ink);font-weight:600" }, prof);
-        t.textContent = "▲ " + name;
-      }
+    climbs.flat().forEach((cl) => {
+      const t = el("text", { x: px(cl.high.d), y: py(cl.high.elev) - 9, "text-anchor": "middle", class: "lbl", "font-size": 11, style: "fill:var(--ink);font-weight:600" }, prof);
+      t.textContent = "▲ " + climbName(cl);
     });
-    // X axis
     el("line", { x1: PL, x2: PR, y1: PB, y2: PB, style: "stroke:var(--muted);stroke-width:1" }, prof);
     const unitM = units === "mi" ? M_PER_MI : 1000;
     const tickStep = units === "mi" ? M_PER_MI / 2 : 500;
@@ -517,30 +558,27 @@ td:not(:first-child), th:not(:first-child) { text-align: right; }
     const fin = el("text", { x: PR, y: PB + 36, "text-anchor": "end", class: "lbl", "font-size": 11, style: "font-weight:600" }, prof);
     fin.textContent = units === "mi" ? "Finish 3.11 mi" : "Finish 5.00 km";
     const yl = el("text", { x: PL, y: PB + 36, class: "lbl", "font-size": 11 }, prof); yl.textContent = "Elevation in feet";
-    // Cursor
     pCursor = el("line", { y1: PT - 4, y2: PB, style: "stroke:var(--accent);stroke-width:1.5" }, prof);
     pCursorDot = el("circle", { r: 5.5, style: "fill:var(--accent);stroke:var(--surface);stroke-width:2.5" }, prof);
-    pLabel = el("text", { "text-anchor": "middle", class: "lbl", "font-size": 11.5, style: "fill:var(--accent);font-weight:600" }, prof);
   }
 
   // ---------- Cursor + readout ----------
+  const SEG_NAMES = ["Out to the loop", "Lap 1", "Lap 2", "Back to the finish"];
   function setCursor(d, passes) {
     cursorD = Math.max(0, Math.min(COURSE_M, d));
-    const i = Math.round(cursorD / STEP), c = course[i];
+    const c = course[Math.round(cursorD / STEP)];
     const p = P(c.pos);
     mapDot.setAttribute("cx", p[0]); mapDot.setAttribute("cy", p[1]);
     mapDotRing.setAttribute("cx", p[0]); mapDotRing.setAttribute("cy", p[1]);
     const x = px(cursorD), y = py(c.elev);
     pCursor.setAttribute("x1", x); pCursor.setAttribute("x2", x);
     pCursorDot.setAttribute("cx", x); pCursorDot.setAttribute("cy", y);
-    pLabel.setAttribute("x", Math.max(PL + 30, Math.min(PR - 30, x))); pLabel.setAttribute("y", PT - 22 < 0 ? 12 : PT - 22 + 10);
-    pLabel.textContent = "";
     document.getElementById("r-dist").textContent = fmtDist(cursorD);
     document.getElementById("r-elev").textContent = Math.round(c.elev).toLocaleString() + " ft";
     const g = c.grade;
     document.getElementById("r-grade").innerHTML = `<span class="chip" style="background:${gradeColor(g)}"></span>${g > 0 ? "+" : ""}${g.toFixed(1)}%`;
     document.getElementById("r-clock").textContent = fmtTime(clockAt(cursorD));
-    const where = cursorD < 1 ? "Start line" : cursorD >= COURSE_M - 1 ? "Finish line" : c.lap === 3 ? "Run-in to finish" : "Lap " + c.lap;
+    const where = cursorD < 1 ? "Start line" : cursorD >= COURSE_M - 1 ? "Finish line" : SEG_NAMES[c.seg];
     document.getElementById("r-passes").textContent = passes || where;
   }
 
@@ -560,16 +598,16 @@ td:not(:first-child), th:not(:first-child) { text-align: right; }
   bindScrub(map, (e) => {
     const pt = map.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
     const sp = pt.matrixTransform(map.getScreenCTM().inverse());
-    const lx = (sp.x - MX) / MS, ly = (MY - sp.y) / MS;
+    const q = [sp.x / K, sp.y / K];
     let best = -1, bd = Infinity;
-    for (let i = 0; i < course.length && course[i].d <= LOOP_M; i++) {
-      const q = course[i].pos, dd = (q[0] - lx) ** 2 + (q[1] - ly) ** 2;
-      if (dd < bd) { bd = dd; best = i; }
-    }
-    if (best < 0 || bd > 60 * 60) return;
-    const base = course[best].d;
-    const hits = [base, base + LOOP_M, base + 2 * LOOP_M].filter((d) => d <= COURSE_M + 1);
-    setCursor(base, "You pass here at " + hits.map((d) => fmtDist(Math.min(d, COURSE_M))).join(", "));
+    course.forEach((c, i) => { const dd = (c.pos[0] - q[0]) ** 2 + (c.pos[1] - q[1]) ** 2; if (dd < bd) { bd = dd; best = i; } });
+    if (best < 0 || bd > 25 * 25) return;
+    // Every time the course passes this spot (the out-and-back path and both laps overlap).
+    const here = course[best].pos, hits = [];
+    course.forEach((c) => {
+      if (Math.hypot(c.pos[0] - here[0], c.pos[1] - here[1]) < 4 && (!hits.length || c.d - hits[hits.length - 1] > 150)) hits.push(c.d);
+    });
+    setCursor(hits[0], hits.length > 1 ? "You pass here at " + hits.map(fmtDist).join(", ") : SEG_NAMES[course[best].seg]);
   });
 
   // ---------- Splits ----------
