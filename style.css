@@ -1,0 +1,142 @@
+:root {
+  --bg: #07090f;
+  --fg: #e8ecf4;
+  --muted: #8a93a6;
+  --accent: #5ee6a8;
+  --panel: rgba(7, 9, 15, 0.82);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#stage {
+  position: relative;
+  /* Keep the 8:5 playfield as large as the window allows. */
+  width: min(100vw, 160vh);
+  height: min(62.5vw, 100vh);
+}
+
+#game {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+.screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 16px;
+  background: var(--panel);
+  text-align: center;
+}
+
+.hidden { display: none !important; }
+
+h1 {
+  margin: 0;
+  font-size: clamp(3rem, 12vw, 7rem);
+  letter-spacing: 0.3em;
+  padding-left: 0.3em; /* balance trailing letter-spacing */
+  color: var(--fg);
+  text-shadow: 0 0 24px rgba(94, 230, 168, 0.35);
+}
+
+h2 {
+  margin: 0 0 0.5rem;
+  font-size: clamp(1.5rem, 5vw, 2.5rem);
+  letter-spacing: 0.1em;
+}
+
+.sub {
+  margin: 0 0 1rem;
+  color: var(--muted);
+}
+
+.buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: min(260px, 80%);
+}
+
+button {
+  font: inherit;
+  font-size: 1.1rem;
+  padding: 0.7rem 1rem;
+  border: 2px solid var(--fg);
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+  letter-spacing: 0.08em;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+button:hover,
+button:focus-visible {
+  background: var(--fg);
+  color: var(--bg);
+  outline: none;
+}
+
+button.secondary {
+  border-color: var(--muted);
+  color: var(--muted);
+}
+
+button.secondary:hover,
+button.secondary:focus-visible {
+  background: var(--muted);
+  color: var(--bg);
+}
+
+.controls {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem;
+  line-height: 2;
+  color: var(--muted);
+}
+
+kbd {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 0 0.35em;
+  border: 1px solid var(--muted);
+  border-radius: 4px;
+  color: var(--fg);
+}
+
+#pause-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  font-size: 0.9rem;
+  border-color: var(--muted);
+  color: var(--muted);
+  opacity: 0.7;
+}
