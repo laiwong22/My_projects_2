@@ -3,16 +3,21 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Pong Fever</title>
+  <title>Pickle Fever</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <main id="stage">
-    <canvas id="game" aria-label="Pong game"></canvas>
+    <canvas id="game" aria-label="Pickleball court"></canvas>
+
+    <div id="hud" aria-live="polite">
+      <div class="side"><span class="label">YOU</span><span id="score-player">0</span></div>
+      <div class="side"><span id="score-cpu">0</span><span class="label" id="cpu-label">CPU</span></div>
+    </div>
 
     <section class="screen" id="screen-menu">
-      <h1>PONG <span>FEVER</span></h1>
-      <p class="sub">You vs CPU &middot; first to 7</p>
+      <h1>PICKLE FEVER</h1>
+      <p class="sub" id="menu-sub">You vs CPU &middot; first to 7</p>
       <div class="buttons">
         <button data-action="play">Play</button>
         <button data-action="controls">Controls</button>
@@ -63,6 +68,7 @@
     <button id="pause-btn" class="hidden" aria-label="Pause">II</button>
   </main>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="game.js"></script>
 </body>
 </html>
