@@ -7,7 +7,20 @@ A 3D pickleball-style take on Pong that runs in the browser: you against the CPU
 - **Locally:** open `index.html` in any modern browser (it needs an internet connection the first time, to load three.js).
 - **On the web (GitHub Pages):** in the repo, go to **Settings → Pages**, set the source to **Deploy from a branch** and pick the branch and `/ (root)`. The game will be at `https://<your-username>.github.io/<repo-name>/`.
 
-Main menu → **Play** → choose **Easy / Medium / Hard**.
+Main menu → **Play vs CPU** → choose **Easy / Medium / Hard**, or **Play a friend** to play someone online.
+
+## Play a friend online
+
+1. One player taps **Play a friend → Create game**. They get a 5-letter code and a **Send invite link** button.
+2. The other player opens the invite link (or taps **Play a friend**, types the code and taps **Join**).
+3. The match starts as soon as they connect. Each of you sees yourself on the left.
+
+There is no game server. The two browsers connect directly to each other with WebRTC, using [PeerJS](https://peerjs.com/) (loaded from a CDN). PeerJS's free public service only introduces the two players, and its free relay steps in when a network blocks direct connections.
+
+- Online play works on the website (GitHub Pages). It doesn't work inside the claude.ai page, which blocks these connections.
+- Whoever the ball is flying toward decides hit or miss with their own paddle, so your hits always count exactly as you see them. Small network delays are blended out so the ball doesn't jump.
+- An online match can't be paused. If either player closes the game or goes quiet for 5 seconds, the match ends.
+- In the code, PeerJS settings can be overridden with `window.PEER_OPTIONS` (for example, to point at your own PeerJS server).
 
 ## Controls
 
@@ -52,4 +65,4 @@ Screen shake on smashes and points, sparks off the paddle, a shockwave where a s
 
 - `index.html`: page, score display and menu screens
 - `style.css`: layout and styling (scales to any screen, works on phones in landscape)
-- `game.js`: game loop, physics, CPU player, input and the 3D scene
+- `game.js`: game loop, physics, CPU player, online play, input and the 3D scene

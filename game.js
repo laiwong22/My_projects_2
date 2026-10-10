@@ -88,6 +88,7 @@
     controls: document.getElementById('screen-controls'),
     pause: document.getElementById('screen-pause'),
     over: document.getElementById('screen-over'),
+    online: document.getElementById('screen-online'),
   };
   const pauseBtn = document.getElementById('pause-btn');
   const smashBtn = document.getElementById('smash-btn');
@@ -241,7 +242,7 @@
   // ---- Screens ----
   function showScreen(name) {
     for (const [key, el] of Object.entries(screens)) el.classList.toggle('hidden', key !== name);
-    pauseBtn.classList.toggle('hidden', name !== null);
+    pauseBtn.classList.toggle('hidden', name !== null || net.active);
     smashBtn.classList.toggle('hidden', name !== null || !touchDevice);
     const first = name && screens[name].querySelector('button');
     if (first && usingKeyboard) first.focus({ preventScroll: true });
@@ -257,7 +258,8 @@
   function updateHud() {
     hud.player.textContent = game.score.player;
     hud.cpu.textContent = game.score.cpu;
-    hud.cpuLabel.textContent = game.mode === 'menu' ? 'CPU' : 'CPU · ' + game.difficulty.toUpperCase();
+    hud.cpuLabel.textContent = net.active ? 'FRIEND'
+      : game.mode === 'menu' ? 'CPU' : 'CPU · ' + game.difficulty.toUpperCase();
   }
 
   function updateRally() {
@@ -285,22 +287,22 @@
     showScreen('menu');
   }
 
-  function startGame(difficulty) {
+  function startGame(difficulty, server = Math.random() < 0.5 ? 'player' : 'cpu') {
     game.difficulty = difficulty;
     game.score.player = 0;
     game.score.cpu = 0;
     game.player.y = game.player.prevY = (H - PADDLE_H) / 2;
     game.cpu.y = game.cpu.prevY = (H - PADDLE_H) / 2;
     pointerY = null;
-    resetRound(Math.random() < 0.5 ? 'player' : 'cpu');
     game.mode = 'playing';
+    resetRound(server);
     accumulator = 0;
     updateHud();
     showScreen(null);
   }
 
   function pause() {
-    if (game.mode !== 'playing') return;
+    if (game.mode !== 'playing' || net.active) return; // an online match can't be paused
     game.mode = 'paused';
     keys.clear();
     showScreen('pause');
@@ -317,9 +319,11 @@
     game.mode = 'over';
     game.timeScale = 1;
     const won = game.score.player > game.score.cpu;
-    document.getElementById('over-title').textContent = won ? 'You win!' : 'CPU wins';
-    document.getElementById('over-score').textContent =
-      `${game.score.player} – ${game.score.cpu} on ${game.difficulty}`;
+    document.getElementById('over-title').textContent = won ? 'You win!' : net.active ? 'Your friend wins' : 'CPU wins';
+    document.getElementById('over-score').textContent = net.active
+      ? `${game.score.player} – ${game.score.cpu}`
+      : `${game.score.player} – ${game.score.cpu} on ${game.difficulty}`;
+    document.getElementById('change-difficulty').classList.toggle('hidden', net.active);
     (won ? sfx.win : sfx.lose)();
     showScreen('over');
   }
@@ -328,7 +332,8 @@
   function resetRound(server) {
     const b = game.ball;
     game.server = server;
-    game.serveTimer = SERVE_DELAY;
+    // Online, the receiver waits for the server's serve to arrive.
+    game.serveTimer = net.active && server !== 'player' ? Infinity : SERVE_DELAY;
     game.deadTimer = 0;
     game.timeScale = 1;
     game.smashReady = 0;
@@ -347,6 +352,7 @@
     b.prevZ = b.z;
     game.cpu.think = 0;
     game.cpu.tracking = false;
+    net.held = 0;
     updateRally();
 
     const p = game.score.player, c = game.score.cpu;
@@ -381,6 +387,7 @@
     launch(dir, b.speed, landX, landY, 0, NET_CLEAR);
     b.lastHitter = game.server;
     sfx.hit(0);
+    net.sendHit();
   }
 
   // Send the ball from where it is so that its first bounce lands exactly at
@@ -438,8 +445,15 @@
     b.e = smash ? SMASH_RESTITUTION : RESTITUTION;
     launch(dir, xSpeed, landX, aimY + curve * CURVE_NET, curve, smash ? SMASH_NET_CLEAR : NET_CLEAR);
     b.lastHitter = side;
+    hitFeedback(side);
+    if (side === 'player') net.sendHit();
+  }
 
-    // Feedback
+  // Sounds, effects and callouts for a hit, local or from the other player.
+  function hitFeedback(side) {
+    const b = game.ball;
+    const dir = side === 'player' ? 1 : -1;
+    const smash = b.smash, spin = b.spin;
     const speedFrac = speedFraction();
     fx.paddleFlash(side, smash ? 1.6 : 0.6 + speedFrac * 0.6);
     fx.sparks(b.x, b.y, b.z, dir, smash ? 46 : 10 + Math.round(speedFrac * 14), smash ? 520 : 260);
@@ -486,6 +500,17 @@
     game.deadTimer = POINT_PAUSE;
     // The match-winning point plays out in slow motion.
     if (game.score[winner] >= WIN_SCORE) game.timeScale = 0.3;
+  }
+
+  // Online, whoever the ball is flying toward rules on that flight: they see
+  // their own paddle exactly, so the call is always fair to the receiver.
+  function awardPoint(winner, reason) {
+    if (game.deadTimer > 0) return;
+    if (net.active) {
+      if (game.ball.vx >= 0) return; // the other player rules on this one
+      net.send({ t: 'point', winner: winner === 'player' ? 'sender' : 'receiver', reason: reason || '' });
+    }
+    callPoint(winner, reason);
   }
 
   function finishPoint() {
@@ -567,13 +592,13 @@
         fx.dust(b.x, b.y, 6);
       }
       // First bounce decides in or out; only the sidelines can be out.
-      if (b.y < 0 || b.y > H) callPoint(b.lastHitter === 'player' ? 'cpu' : 'player', 'OUT');
+      if (b.y < 0 || b.y > H) awardPoint(b.lastHitter === 'player' ? 'cpu' : 'player', 'OUT');
     } else {
       sfx.bounce(strength * 0.7);
       // Double-bounce rule: the receiver must hit it before it bounces twice.
       // (Once it's already past their paddle, it's simply a winner.)
       const beforePaddle = b.x - BALL_R >= PLAYER_FACE && b.x + BALL_R <= CPU_FACE;
-      if (b.bounces === 2 && beforePaddle) callPoint(b.lastHitter, 'DOUBLE BOUNCE');
+      if (b.bounces === 2 && beforePaddle) awardPoint(b.lastHitter, 'DOUBLE BOUNCE');
     }
   }
 
@@ -640,6 +665,19 @@
     const b = game.ball;
     let remaining = dt;
 
+    // Online: when the ball reaches the other player's paddle and their paddle
+    // looks to be in the way, wait there (briefly) for their hit to arrive
+    // rather than flying on through and snapping back.
+    if (net.active && b.vx > 0 && b.x + BALL_R >= CPU_FACE - 0.5) {
+      const cy = game.cpu.y;
+      const covered = b.y >= cy - BALL_R - 20 && b.y <= cy + PADDLE_H + BALL_R + 20;
+      if (covered && net.held < 0.6) {
+        net.held += dt;
+        b.x = CPU_FACE - BALL_R;
+        return;
+      }
+    }
+
     for (let i = 0; i < 3 && remaining > 1e-9; i++) {
       let hitT = Infinity;
       let hit = null;
@@ -651,7 +689,7 @@
         const y = yAt(t);
         const py = game.player.y;
         if (t <= remaining && y >= py - BALL_R && y <= py + PADDLE_H + BALL_R) { hitT = t; hit = 'player'; }
-      } else if (b.vx > 0 && b.x + BALL_R <= CPU_FACE + 0.5) {
+      } else if (b.vx > 0 && b.x + BALL_R <= CPU_FACE + 0.5 && !net.active) {
         const t = Math.max(0, (CPU_FACE - BALL_R - b.x) / b.vx);
         const y = yAt(t);
         const cy = game.cpu.y;
@@ -680,9 +718,9 @@
 
     // A ball that gets past a paddle is the other side's point; one that
     // landed in and then ran off past a sideline beat the receiver.
-    if (b.x + BALL_R < 0) callPoint('cpu');
-    else if (b.x - BALL_R > W) callPoint('player');
-    else if (b.bounced && (b.y < -OFF_FIELD || b.y > H + OFF_FIELD)) callPoint(b.lastHitter);
+    if (b.x + BALL_R < 0) awardPoint('cpu');
+    else if (b.x - BALL_R > W) awardPoint('player');
+    else if (b.bounced && (b.y < -OFF_FIELD || b.y > H + OFF_FIELD)) awardPoint(b.lastHitter);
   }
 
   function update(dt) {
@@ -694,7 +732,8 @@
     b.prevZ = b.z;
 
     updatePlayer(dt);
-    updateCpu(dt);
+    if (net.active) updateRemote(dt);
+    else updateCpu(dt);
 
     if (game.deadTimer > 0) {
       advanceBall(dt); // the point is decided; let the ball play out
@@ -710,6 +749,293 @@
     }
     updateBall(dt);
   }
+
+
+  // ---- Online play (peer to peer) ----
+  // PeerJS's free public service introduces the two browsers; after that they
+  // talk directly over WebRTC (or through PeerJS's free relay when a network
+  // blocks direct connections). There is no game server. Each player
+  // simulates the match from their own side, with themselves on the left, and
+  // messages are mirrored on arrival. Whoever the ball is flying toward rules
+  // on that flight: they decide hit or miss with their own paddle, then send
+  // the ball's new state.
+  const PEERJS_URL = 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';
+  const PEER_PREFIX = 'picklefever-';
+  const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  const WEBSITE = 'laiwong22.github.io/My_projects_2';
+  const onlineStatus = document.getElementById('online-status');
+  const onlineChoices = document.getElementById('online-choices');
+  const onlineWait = document.getElementById('online-wait');
+  const joinInput = document.getElementById('join-code');
+
+  function loadPeerJs() {
+    if (window.Peer) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const tag = document.createElement('script');
+      tag.src = PEERJS_URL;
+      tag.onload = resolve;
+      tag.onerror = reject;
+      document.head.appendChild(tag);
+    });
+  }
+
+  function showOnline(message) {
+    onlineChoices.classList.remove('hidden');
+    onlineWait.classList.add('hidden');
+    onlineStatus.textContent = message || 'Create a game and send your friend the invite, or join with their code.';
+    showScreen('online');
+  }
+
+  function onlineFailed(message) {
+    net.leave();
+    const elsewhere = location.hostname.endsWith('github.io') ? '' : ` Online play works on the website: ${WEBSITE}`;
+    showOnline(message + elsewhere);
+  }
+
+  function peerError(err) {
+    if (err && err.type === 'peer-unavailable') onlineFailed('No game found with that code. Check it and try again.');
+    else onlineFailed("Couldn't reach the online service.");
+  }
+
+  const mirror = (s) => ({
+    x: W - s.x, y: H - s.y, z: s.z, vx: -s.vx, vy: -s.vy, vz: s.vz, ay: -s.ay, g: s.g, e: s.e,
+    speed: s.speed, rallySpeed: s.rallySpeed, hits: s.hits, spin: -s.spin, smash: s.smash,
+    bounces: s.bounces, bounced: s.bounced, rolling: s.rolling,
+  });
+
+  const net = {
+    active: false, // an online match is on
+    role: null, // 'host' | 'guest'
+    peer: null,
+    conn: null,
+    code: null,
+    latency: 0.05, // one-way, seconds
+    held: 0, // how long the ball has waited at the other player's paddle
+    oppTargetY: (H - PADDLE_H) / 2,
+    lastSend: 0,
+    lastPing: 0,
+    lastHeard: 0, // when anything last arrived from the other player
+    attempts: 0, // counts join attempts, so a stale timeout can't cancel a newer one
+    vis: { x: 0, y: 0, z: 0 }, // visual correction still being blended out
+
+    send(msg) {
+      if (net.conn && net.conn.open) {
+        try { net.conn.send(msg); } catch (_) { /* connection dropping */ }
+      }
+    },
+
+    host() {
+      net.leave();
+      net.role = 'host';
+      onlineStatus.textContent = 'Setting up…';
+      loadPeerJs().then(() => {
+        const code = Array.from({ length: 5 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join('');
+        const peer = new window.Peer(PEER_PREFIX + code.toLowerCase(), Object.assign({ debug: 0 }, window.PEER_OPTIONS));
+        net.peer = peer;
+        peer.on('open', () => {
+          net.code = code;
+          document.getElementById('room-code').textContent = code;
+          document.getElementById('room-link').textContent = net.link();
+          onlineChoices.classList.add('hidden');
+          onlineWait.classList.remove('hidden');
+          onlineStatus.textContent = 'Send your friend the invite, then wait here. The match starts when they join.';
+        });
+        peer.on('connection', (conn) => {
+          if (net.conn) { conn.on('open', () => conn.close()); return; } // already have an opponent
+          net.attach(conn);
+        });
+        peer.on('error', (err) => {
+          if (err.type === 'unavailable-id') net.host(); // code taken; pick another
+          else if (!net.active) peerError(err);
+        });
+      }).catch(() => onlineFailed("Couldn't load online play."));
+    },
+
+    join(raw) {
+      const code = String(raw || '').trim().toUpperCase();
+      if (code.length !== 5) {
+        onlineStatus.textContent = 'Enter the 5-character code from your friend.';
+        return;
+      }
+      net.leave();
+      net.role = 'guest';
+      onlineStatus.textContent = `Joining ${code}…`;
+      const attempt = ++net.attempts;
+      setTimeout(() => {
+        if (net.attempts === attempt && net.role === 'guest' && !net.active) {
+          onlineFailed("Couldn't connect to your friend. Check you're both online and try again.");
+        }
+      }, 15000);
+      loadPeerJs().then(() => {
+        const peer = new window.Peer(Object.assign({ debug: 0 }, window.PEER_OPTIONS));
+        net.peer = peer;
+        peer.on('open', () => net.attach(peer.connect(PEER_PREFIX + code.toLowerCase(), { reliable: true })));
+        peer.on('error', (err) => { if (!net.active) peerError(err); });
+      }).catch(() => onlineFailed("Couldn't load online play."));
+    },
+
+    attach(conn) {
+      net.conn = conn;
+      conn.on('open', () => {
+        net.lastHeard = performance.now();
+        onlineStatus.textContent = 'Connected. Starting…';
+        if (net.role === 'host') net.rematch();
+      });
+      conn.on('data', net.receive);
+      conn.on('close', net.closed);
+      conn.on('error', net.closed);
+    },
+
+    closed() {
+      if (!net.conn) return;
+      net.conn = null;
+      const wasPlaying = net.active;
+      net.leave();
+      if (wasPlaying) {
+        game.mode = 'menu';
+        showOnline('Your friend left the game.');
+      }
+    },
+
+    leave() {
+      if (net.conn && net.conn.open) try { net.conn.send({ t: 'bye' }); } catch (_) { /* closing anyway */ }
+      const conn = net.conn, peer = net.peer;
+      net.conn = null;
+      net.peer = null;
+      if (conn) try { conn.close(); } catch (_) { /* already closed */ }
+      if (peer) try { peer.destroy(); } catch (_) { /* already gone */ }
+      net.active = false;
+      net.role = null;
+      net.code = null;
+    },
+
+    link() {
+      return `${location.origin}${location.pathname}?join=${net.code}`;
+    },
+
+    invite() {
+      const link = net.link();
+      if (touchDevice && navigator.share) {
+        navigator.share({ title: 'Pickle Fever', text: `Play Pickle Fever with me! Code ${net.code}`, url: link }).catch(() => {});
+        return;
+      }
+      navigator.clipboard.writeText(link)
+        .then(() => { onlineStatus.textContent = 'Invite link copied. Send it to your friend, then wait here.'; })
+        .catch(() => {
+          const range = document.createRange();
+          range.selectNodeContents(document.getElementById('room-link'));
+          getSelection().removeAllRanges();
+          getSelection().addRange(range);
+          onlineStatus.textContent = 'Copy the link below and send it to your friend.';
+        });
+    },
+
+    // The host starts every match and picks who serves first.
+    rematch() {
+      if (net.role === 'host') {
+        const hostServes = Math.random() < 0.5;
+        net.send({ t: 'start', server: hostServes ? 'sender' : 'receiver' });
+        net.start(hostServes ? 'player' : 'cpu');
+      } else {
+        net.send({ t: 'rematch' });
+        document.getElementById('over-score').textContent = 'Waiting for your friend…';
+      }
+    },
+
+    start(server) {
+      net.active = true;
+      net.vis.x = net.vis.y = net.vis.z = 0;
+      net.oppTargetY = (H - PADDLE_H) / 2;
+      startGame('medium', server);
+    },
+
+    sendHit() {
+      if (!net.active) return;
+      const b = game.ball;
+      net.send({ t: 'hit', b: {
+        x: b.x, y: b.y, z: b.z, vx: b.vx, vy: b.vy, vz: b.vz, ay: b.ay, g: b.g, e: b.e,
+        speed: b.speed, rallySpeed: b.rallySpeed, hits: b.hits, spin: b.spin, smash: b.smash,
+        bounces: b.bounces, bounced: b.bounced, rolling: b.rolling,
+      } });
+    },
+
+    receive(m) {
+      net.lastHeard = performance.now();
+      switch (m.t) {
+        case 'bye': net.closed(); break;
+        case 'start': net.start(m.server === 'sender' ? 'cpu' : 'player'); break;
+        case 'rematch': if (net.role === 'host' && game.mode === 'over') net.rematch(); break;
+        case 'p': net.oppTargetY = H - m.y - PADDLE_H; break;
+        case 'hit': net.receiveHit(m.b); break;
+        case 'point':
+          if (game.mode === 'playing') callPoint(m.winner === 'sender' ? 'cpu' : 'player', m.reason || undefined);
+          break;
+        case 'ping': net.send({ t: 'pong', s: m.s }); break;
+        case 'pong': {
+          const oneWay = Math.min(0.5, (performance.now() - m.s) / 2000);
+          net.latency = net.latency * 0.7 + oneWay * 0.3;
+          break;
+        }
+      }
+    },
+
+    receiveHit(state) {
+      if (game.mode !== 'playing' || game.deadTimer > 0) return;
+      const b = game.ball;
+      const drawnX = b.x, drawnY = b.y, drawnZ = b.z;
+      Object.assign(b, mirror(state));
+      b.lastHitter = 'cpu';
+      game.serveTimer = 0;
+      net.held = 0;
+      hitFeedback('cpu');
+      // Catch up by the time the message spent travelling.
+      for (let t = Math.min(0.3, net.latency); t >= STEP && game.deadTimer <= 0; t -= STEP) advanceBall(STEP);
+      b.prevX = b.x;
+      b.prevY = b.y;
+      b.prevZ = b.z;
+      // Draw the ball from where it was and let the difference fade out.
+      const dx = drawnX - b.x, dy = drawnY - b.y, dz = drawnZ - b.z;
+      if (Math.hypot(dx, dy, dz) < 250) {
+        net.vis.x += dx;
+        net.vis.y += dy;
+        net.vis.z += dz;
+      }
+    },
+
+    // Called every frame: share our paddle and check the connection.
+    tick(now) {
+      if (!net.active) return;
+      // A closed tab or lost signal doesn't always close the connection, so
+      // treat five seconds of silence as the other player having left.
+      if (now - net.lastHeard > 5000) {
+        net.closed();
+        return;
+      }
+      if (now - net.lastSend > 33) {
+        net.lastSend = now;
+        net.send({ t: 'p', y: Math.round(game.player.y * 10) / 10 });
+      }
+      if (now - net.lastPing > 1000) {
+        net.lastPing = now;
+        net.send({ t: 'ping', s: now });
+      }
+    },
+  };
+
+  // The other player's paddle glides to where they last reported it.
+  function updateRemote(dt) {
+    const c = game.cpu;
+    const before = c.y;
+    c.y += (clampPaddle(net.oppTargetY) - c.y) * (1 - Math.exp(-dt * 30));
+    c.vel = (c.y - before) / dt;
+  }
+
+  window.addEventListener('pagehide', () => net.leave());
+
+  document.getElementById('join-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    net.join(joinInput.value);
+  });
 
   // ---- 3D scene ----
   // World axes: X along the court (court x − 400), Z across it (court y −
@@ -817,13 +1143,13 @@
   });
   netTex.wrapS = netTex.wrapT = THREE.RepeatWrapping;
   netTex.repeat.set(H / 64, NET_HEIGHT / 16);
-  const net = new THREE.Mesh(
+  const netMesh = new THREE.Mesh(
     new THREE.PlaneGeometry(H + 24, NET_HEIGHT),
     new THREE.MeshStandardMaterial({ map: netTex, transparent: true, side: THREE.DoubleSide, depthWrite: false })
   );
-  net.rotation.y = Math.PI / 2;
-  net.position.set(0, NET_HEIGHT / 2, 0);
-  scene.add(net);
+  netMesh.rotation.y = Math.PI / 2;
+  netMesh.position.set(0, NET_HEIGHT / 2, 0);
+  scene.add(netMesh);
   const tape = new THREE.Mesh(new THREE.BoxGeometry(2.4, 3, H + 24), white);
   tape.position.set(0, NET_HEIGHT, 0);
   tape.castShadow = true;
@@ -1114,7 +1440,10 @@
     playerPaddle.position.set(PLAYER_FACE - 4 - W / 2, paddleHeight('player', bx, bz, frameDt), py - H / 2);
     cpuPaddle.position.set(CPU_FACE + 4 - W / 2, paddleHeight('cpu', bx, bz, frameDt), cy - H / 2);
 
-    ball.position.set(bx - W / 2, bz, by - H / 2);
+    // Online corrections blend in over a moment instead of jumping.
+    const k = Math.exp(-frameDt * 14);
+    net.vis.x *= k; net.vis.y *= k; net.vis.z *= k;
+    ball.position.set(bx - W / 2 + net.vis.x, bz + net.vis.z, by - H / 2 + net.vis.y);
     blob.position.x = ball.position.x;
     blob.position.z = ball.position.z;
     const lift = Math.min(1, (bz - BALL_R) / 160);
@@ -1180,6 +1509,7 @@
       }
     }
 
+    net.tick(now);
     render(game.mode === 'playing' ? accumulator / STEP : 1, dt, now);
     requestAnimationFrame(frame);
   }
@@ -1191,6 +1521,7 @@
 
   window.addEventListener('keydown', (e) => {
     usingKeyboard = true;
+    if (e.target instanceof HTMLInputElement) return; // typing a game code
     if (e.code === 'KeyM') {
       muted = !muted;
       return;
@@ -1263,22 +1594,35 @@
     sfx.click();
     if (btn.dataset.difficulty) return startGame(btn.dataset.difficulty);
     switch (btn.dataset.action) {
-      case 'play': game.mode = 'menu'; showScreen('difficulty'); break;
+      case 'play': net.leave(); game.mode = 'menu'; showScreen('difficulty'); break;
       case 'controls': showScreen('controls'); break;
-      case 'menu': showScreen('menu'); break;
+      case 'menu': net.leave(); showScreen('menu'); break;
       case 'resume': resume(); break;
-      case 'again': startGame(game.difficulty); break;
-      case 'quit': goToMenu(); break;
+      case 'again': net.active ? net.rematch() : startGame(game.difficulty); break;
+      case 'quit': net.leave(); goToMenu(); break;
+      case 'online': showOnline(); break;
+      case 'host': net.host(); break;
+      case 'invite': net.invite(); break;
+      case 'leave': net.leave(); showOnline(); break;
     }
   });
 
   window.addEventListener('resize', resize);
 
   // Small hook for automated tests / debugging in the console.
-  window.__game = { game, update, STEP, DIFFICULTIES, setPointer: (y) => { pointerY = y; }, triggerSmash, hitBall };
+  window.__game = { game, update, STEP, DIFFICULTIES, setPointer: (y) => { pointerY = y; }, triggerSmash, hitBall, net };
 
   resize();
   updateHud();
   showScreen('menu');
   requestAnimationFrame(frame);
+
+  // An invite link (…?join=CODE) goes straight to joining that game.
+  const invited = new URLSearchParams(location.search).get('join');
+  if (invited) {
+    history.replaceState(null, '', location.pathname);
+    joinInput.value = invited;
+    showOnline();
+    net.join(invited);
+  }
 })();

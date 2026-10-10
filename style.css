@@ -257,3 +257,53 @@ kbd {
 @media (prefers-reduced-motion: reduce) {
   #hud .side span.bump, #flash.show { animation: none; }
 }
+
+.join {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.join input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 1.1rem;
+  padding: 0.7rem 0.8rem;
+  border: 2px solid var(--muted);
+  background: transparent;
+  color: var(--fg);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.join input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.room-code {
+  font-size: clamp(2rem, 7vw, 3.2rem);
+  font-weight: bold;
+  letter-spacing: 0.3em;
+  padding-left: 0.3em;
+  color: var(--accent);
+}
+
+.room-link {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

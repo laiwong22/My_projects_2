@@ -22,8 +22,29 @@
       <h1>PICKLE FEVER</h1>
       <p class="sub" id="menu-sub">You vs CPU &middot; first to 11</p>
       <div class="buttons">
-        <button data-action="play">Play</button>
+        <button data-action="play">Play vs CPU</button>
+        <button data-action="online">Play a friend</button>
         <button data-action="controls">Controls</button>
+      </div>
+    </section>
+
+    <section class="screen hidden" id="screen-online">
+      <h2>Play a friend</h2>
+      <p class="sub" id="online-status">Create a game and send your friend the invite, or join with their code.</p>
+      <div class="buttons" id="online-choices">
+        <button data-action="host">Create game</button>
+        <form class="join" id="join-form">
+          <label for="join-code" class="visually-hidden">Game code</label>
+          <input id="join-code" maxlength="5" placeholder="CODE" autocomplete="off" autocapitalize="characters" spellcheck="false">
+          <button type="submit">Join</button>
+        </form>
+        <button data-action="menu" class="secondary">Back</button>
+      </div>
+      <div class="buttons hidden" id="online-wait">
+        <div class="room-code" id="room-code">-----</div>
+        <button data-action="invite">Send invite link</button>
+        <p class="room-link" id="room-link"></p>
+        <button data-action="leave" class="secondary">Cancel</button>
       </div>
     </section>
 
@@ -68,7 +89,7 @@
       <p class="sub" id="over-score"></p>
       <div class="buttons">
         <button data-action="again">Play again</button>
-        <button data-action="play">Change difficulty</button>
+        <button data-action="play" id="change-difficulty">Change difficulty</button>
         <button data-action="quit" class="secondary">Main menu</button>
       </div>
     </section>
