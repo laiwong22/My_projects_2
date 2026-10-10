@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="Interactive course map and elevation profile for the Sugar House 5K: two laps of Sugar House Park, Salt Lake City.">
-<title>Sugar House Park 5K</title>
+<meta name="description" content="Interactive course map and elevation profile for the Holladay YSA 5K: two laps of Sugar House Park, Salt Lake City.">
+<title>Holladay YSA 5K Race Strategy</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;700;800&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
@@ -67,7 +67,7 @@ body { background: var(--bg); color: var(--ink); font-family: var(--font-body); 
 /* Header */
 header { display: grid; gap: 14px; }
 .eyebrow { font-family: var(--font-data); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
-h1 { font-family: var(--font-display); font-weight: 800; font-size: clamp(44px, 8vw, 84px); line-height: .9; margin: 0; letter-spacing: -.01em; text-transform: uppercase; text-wrap: balance; }
+h1 { font-family: var(--font-display); font-weight: 800; font-size: clamp(40px, 7vw, 76px); line-height: .9; margin: 0; letter-spacing: -.01em; text-transform: uppercase; text-wrap: balance; }
 h1 .bib { display: inline-block; background: var(--accent); color: var(--accent-ink); padding: 0 .18em; border-radius: 6px; margin-left: .08em; }
 .lede { margin: 0; color: var(--muted); max-width: 62ch; }
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
@@ -143,7 +143,7 @@ td:not(:first-child), th:not(:first-child) { text-align: right; }
 <div class="wrap">
   <header>
     <div class="eyebrow">Sugar House Park · 1330 E 2100 S · Salt Lake City, Utah</div>
-    <h1>Sugar House <span class="bib">5K</span></h1>
+    <h1>Holladay YSA <span class="bib">5K</span> Race Strategy</h1>
     <p class="lede">Two laps of the park's main loop road, then a short run-in to the finish. Drag along the elevation profile or the map to see grade, elevation and your race clock at any point on the course.</p>
     <div class="stats" id="stats"></div>
   </header>
@@ -160,7 +160,7 @@ td:not(:first-child), th:not(:first-child) { text-align: right; }
 
   <div class="main">
     <div class="panel map-panel">
-      <svg id="map" viewBox="0 0 1000 760" role="img" aria-label="Map of the Sugar House 5K course around Sugar House Park, colored by grade"></svg>
+      <svg id="map" viewBox="0 0 1000 760" role="img" aria-label="Map of the Holladay YSA 5K course around Sugar House Park, colored by grade"></svg>
       <div class="map-foot">
         <span>Counterclockwise · 2 laps + 0.35 mi finish stretch</span>
         <span>North is up</span>
