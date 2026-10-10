@@ -1,3 +1,9 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Interactive course map and elevation profile for the Sugar House 5K: two laps of Sugar House Park, Salt Lake City.">
 <title>Sugar House Park 5K</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -51,6 +57,9 @@
 }
 
 * { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; }
+[hidden] { display: none !important; }
 body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5; }
 .wrap { max-width: 1180px; margin: 0 auto; padding-inline: 20px; padding-block: 28px 48px; display: grid; gap: 22px; }
 @media (max-width: 480px) { .wrap { padding-inline: 16px; } }
@@ -129,7 +138,8 @@ td:not(:first-child), th:not(:first-child) { text-align: right; }
 .mk-txt { font-family: var(--font-display); font-weight: 700; font-size: 13px; fill: var(--surface); }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
-
+</head>
+<body>
 <div class="wrap">
   <header>
     <div class="eyebrow">Sugar House Park · 1330 E 2100 S · Salt Lake City, Utah</div>
@@ -617,3 +627,6 @@ td:not(:first-child), th:not(:first-child) { text-align: right; }
   setCursor(0);
 })();
 </script>
+
+</body>
+</html>
