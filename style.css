@@ -2,7 +2,7 @@
   --bg: #07090f;
   --fg: #e8ecf4;
   --muted: #8a93a6;
-  --accent: #5ee6a8;
+  --accent: #ffb547;
   --panel: rgba(7, 9, 15, 0.82);
 }
 
@@ -60,7 +60,7 @@ h1 {
   letter-spacing: 0.2em;
   padding-left: 0.2em; /* balance trailing letter-spacing */
   color: var(--fg);
-  text-shadow: 0 0 24px rgba(94, 230, 168, 0.35);
+  text-shadow: 0 0 24px rgba(255, 181, 71, 0.35);
 }
 
 h2 {

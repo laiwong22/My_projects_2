@@ -362,8 +362,8 @@
     const b = game.ball;
     const waiting = game.serveTimer > 0;
     if (!waiting || Math.floor(game.serveTimer * 6) % 2 === 0) {
-      ctx.fillStyle = '#5ee6a8';
-      ctx.shadowColor = 'rgba(94, 230, 168, 0.6)';
+      ctx.fillStyle = '#ffb547';
+      ctx.shadowColor = 'rgba(255, 181, 71, 0.6)';
       ctx.shadowBlur = 12;
       ctx.beginPath();
       ctx.arc(lerp(b.prevX, b.x, alpha), lerp(b.prevY, b.y, alpha), BALL_R, 0, Math.PI * 2);
