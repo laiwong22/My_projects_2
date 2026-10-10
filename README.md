@@ -1,6 +1,6 @@
 # Pickle Fever
 
-A 3D pickleball-style take on Pong that runs in the browser: you against the CPU, first to 7. It's plain HTML, CSS and JavaScript, with no build step. The 3D view uses [three.js](https://threejs.org/), loaded from a CDN.
+A 3D pickleball-style take on Pong that runs in the browser: you against the CPU, first to 11. It's plain HTML, CSS and JavaScript, with no build step. The 3D view uses [three.js](https://threejs.org/), loaded from a CDN.
 
 ## Play
 
@@ -14,6 +14,7 @@ Main menu → **Play** → choose **Easy / Medium / Hard**.
 | Action | Keys |
 | --- | --- |
 | Move paddle | `W`/`S` or `↑`/`↓`, or move the mouse / drag with a finger |
+| Smash | `Tab` or `Space`, a mouse click, or the **SMASH** button on phones |
 | Pause | `Esc` or `P` (or the pause button on screen) |
 | Toggle sound | `M` |
 
@@ -22,9 +23,17 @@ The game pauses on its own if you switch tabs.
 ## Rules and physics
 
 - **The ball bounces.** Every shot clears the net and its first bounce lands in the opponent's court, between the kitchen line and the baseline. It then bounces up toward the other paddle.
-- **Spin.** Move your paddle as you hit and the ball curves that way, and keeps curving a little after it bounces. Gentle movement adds little; a fast swipe with the mouse or a finger bends it a lot. An amber trail shows a spinning ball.
+- **Spin.** Move your paddle as you hit to put sidespin on the ball: it swings out one way, bends back across in the direction you swiped, then kicks sideways off the bounce. Gentle movement adds a little; a fast swipe with the mouse or a finger bends it hard. An amber trail shows a spinning ball.
+- **Smash.** Press smash just before the ball reaches you (your paddle glows while it's primed) for a fast, deep, low shot that skids off the court. The CPU smashes now and then too, more often on Hard.
+- **Rally speed.** The first three hits of a rally stay at the starting speed; from the 4th hit on, every hit is faster, on every difficulty.
+- **Double bounce.** If the ball bounces twice on your side before you hit it, you lose the point.
 - **Out.** Only the sidelines (the long north and south edges) can be out. If a shot's first bounce lands past a sideline, the player who hit it loses the point. Without spin, a shot always lands inside the sidelines, so going out takes a wide shot with heavy outward spin.
+- **Winning.** Games are first to 11.
 - **Winning a point.** You win the point when the ball gets past the CPU's paddle, when its shot lands out, or when your shot lands in and curves off past a sideline before the CPU can reach it. The winner serves the next point, crosscourt like a real serve.
+
+## Effects
+
+Screen shake on smashes and points, sparks off the paddle, a shockwave where a smash lands, a ball that glows and lights the court as it speeds up, a speed trail, paddle flashes, and the match-winning point in slow motion. Sounds are synthesized to match: paddle pops that brighten as the rally speeds up, a whoosh for spin, a boom for smashes, buzzers for outs, and chimes for points.
 
 ## The look
 
