@@ -1,0 +1,619 @@
+<title>Sugar House Park 5K</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;700;800&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: race-bib header + stat strip, course map beside a pace/legend rail, full-width elevation profile under both. */
+:root {
+  --bg: #eef2ec;
+  --surface: #ffffff;
+  --ink: #16201a;
+  --muted: #5a6a61;
+  --line: #d3dcd5;
+  --grass: #dbe8d2;
+  --grass-2: #c8dcbb;
+  --tree: #a9c799;
+  --water: #b4d5e6;
+  --water-edge: #8dbcd4;
+  --street: #ffffff;
+  --street-edge: #c7cfc8;
+  --freeway: #f2d9a6;
+  --freeway-edge: #d9b56c;
+  --accent: #2343c4;
+  --accent-ink: #ffffff;
+  --casing: #ffffff;
+  --g-down2: #13798a;
+  --g-down: #58b09e;
+  --g-flat: #cfae2e;
+  --g-up: #ec8329;
+  --g-up2: #cf3426;
+  --font-display: "Saira Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --font-body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1411; --surface: #161f1a; --ink: #e6ede8; --muted: #93a49a; --line: #2a3630;
+    --grass: #18261c; --grass-2: #1d2f21; --tree: #27412b; --water: #1b3a4b; --water-edge: #2b5a72;
+    --street: #2a342f; --street-edge: #3a4740; --freeway: #4a3d22; --freeway-edge: #6e5a2e;
+    --accent: #8ea4ff; --accent-ink: #0e1411; --casing: #0e1411;
+    --g-down2: #3cb7c6; --g-down: #7fd3bf; --g-flat: #e3c856; --g-up: #ff9c46; --g-up2: #ff5b4b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1411; --surface: #161f1a; --ink: #e6ede8; --muted: #93a49a; --line: #2a3630;
+  --grass: #18261c; --grass-2: #1d2f21; --tree: #27412b; --water: #1b3a4b; --water-edge: #2b5a72;
+  --street: #2a342f; --street-edge: #3a4740; --freeway: #4a3d22; --freeway-edge: #6e5a2e;
+  --accent: #8ea4ff; --accent-ink: #0e1411; --casing: #0e1411;
+  --g-down2: #3cb7c6; --g-down: #7fd3bf; --g-flat: #e3c856; --g-up: #ff9c46; --g-up2: #ff5b4b;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1180px; margin: 0 auto; padding-inline: 20px; padding-block: 28px 48px; display: grid; gap: 22px; }
+@media (max-width: 480px) { .wrap { padding-inline: 16px; } }
+
+/* Header */
+header { display: grid; gap: 14px; }
+.eyebrow { font-family: var(--font-data); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+h1 { font-family: var(--font-display); font-weight: 800; font-size: clamp(44px, 8vw, 84px); line-height: .9; margin: 0; letter-spacing: -.01em; text-transform: uppercase; text-wrap: balance; }
+h1 .bib { display: inline-block; background: var(--accent); color: var(--accent-ink); padding: 0 .18em; border-radius: 6px; margin-left: .08em; }
+.lede { margin: 0; color: var(--muted); max-width: 62ch; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.stat { background: var(--surface); padding: 12px 14px; display: grid; gap: 2px; }
+.stat .k { font-family: var(--font-data); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.stat .v { font-family: var(--font-display); font-weight: 700; font-size: 30px; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.stat .s { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* Toolbar */
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); padding: 3px; }
+.seg button { font: 600 13px var(--font-body); color: var(--muted); background: none; border: 0; border-radius: 999px; padding: 6px 14px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.btn { font: 700 14px var(--font-body); background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 999px; padding: 9px 18px; cursor: pointer; display: inline-flex; gap: 8px; align-items: center; }
+.btn.ghost { background: var(--surface); color: var(--ink); border: 1px solid var(--line); }
+button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tools-right { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Main grid */
+.main { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; align-items: start; }
+@media (max-width: 880px) { .main { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.map-panel { overflow: hidden; position: relative; }
+#map { display: block; width: 100%; height: auto; touch-action: none; }
+.map-foot { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 10px 14px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+.map-foot a { color: var(--accent); }
+
+.rail { display: grid; gap: 14px; }
+.rail .panel { padding: 16px; display: grid; gap: 12px; }
+.rail h2 { font-family: var(--font-display); font-weight: 700; font-size: 20px; text-transform: uppercase; letter-spacing: .02em; margin: 0; }
+.readout { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+.readout div { display: grid; }
+.readout .k { font-family: var(--font-data); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.readout .v { font-family: var(--font-data); font-weight: 600; font-size: 18px; font-variant-numeric: tabular-nums; }
+.passes { font-size: 12.5px; color: var(--muted); min-height: 1.5em; }
+.legend { display: grid; gap: 6px; }
+.legend-bar { display: grid; grid-template-columns: repeat(5, 1fr); height: 10px; border-radius: 5px; overflow: hidden; }
+.legend-labels { display: grid; grid-template-columns: repeat(5, 1fr); font-family: var(--font-data); font-size: 10.5px; color: var(--muted); text-align: center; }
+.goal { display: grid; gap: 8px; }
+.goal-row { display: flex; justify-content: space-between; align-items: baseline; }
+.goal-time { font-family: var(--font-display); font-weight: 800; font-size: 40px; line-height: 1; font-variant-numeric: tabular-nums; }
+.goal-pace { font-family: var(--font-data); font-size: 13px; color: var(--muted); }
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+.splits-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-family: var(--font-data); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+th { text-align: left; font-weight: 500; color: var(--muted); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; padding: 4px 0; border-bottom: 1px solid var(--line); }
+td { padding: 5px 0; border-bottom: 1px solid var(--line); }
+td:not(:first-child), th:not(:first-child) { text-align: right; }
+.chip { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; vertical-align: 1px; }
+.note { font-size: 12px; color: var(--muted); margin: 0; }
+
+/* Profile */
+.profile-panel { padding: 16px 16px 8px; display: grid; gap: 8px; }
+.profile-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 6px 16px; }
+.profile-head h2 { font-family: var(--font-display); font-weight: 700; font-size: 22px; text-transform: uppercase; letter-spacing: .02em; margin: 0; }
+.profile-head span { font-size: 12.5px; color: var(--muted); }
+.profile-scroll { overflow-x: auto; }
+#profile { display: block; width: 100%; min-width: 560px; height: auto; touch-action: none; cursor: crosshair; }
+
+.details { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; }
+.details h3 { font-family: var(--font-display); font-weight: 700; font-size: 18px; text-transform: uppercase; margin: 0 0 4px; letter-spacing: .02em; }
+.details p { margin: 0; color: var(--muted); font-size: 13.5px; max-width: 60ch; }
+
+/* SVG text */
+.lbl { font-family: var(--font-data); fill: var(--muted); }
+.street-lbl { font-family: var(--font-data); font-size: 11px; letter-spacing: .14em; fill: var(--muted); text-transform: uppercase; }
+.park-lbl { font-family: var(--font-display); font-weight: 700; font-size: 22px; letter-spacing: .12em; fill: var(--muted); opacity: .55; }
+.mk-txt { font-family: var(--font-display); font-weight: 700; font-size: 13px; fill: var(--surface); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Sugar House Park · 1330 E 2100 S · Salt Lake City, Utah</div>
+    <h1>Sugar House <span class="bib">5K</span></h1>
+    <p class="lede">Two laps of the park's main loop road, then a short run-in to the finish. Drag along the elevation profile or the map to see grade, elevation and your race clock at any point on the course.</p>
+    <div class="stats" id="stats"></div>
+  </header>
+
+  <div class="toolbar">
+    <div class="seg" role="group" aria-label="Units">
+      <button type="button" id="u-mi" aria-pressed="true">Miles</button>
+      <button type="button" id="u-km" aria-pressed="false">Kilometers</button>
+    </div>
+    <div class="tools-right">
+      <button type="button" class="btn" id="play">▶ Run the course</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="panel map-panel">
+      <svg id="map" viewBox="0 0 1000 760" role="img" aria-label="Map of the Sugar House 5K course around Sugar House Park, colored by grade"></svg>
+      <div class="map-foot">
+        <span>Clockwise · 2 laps + 0.35 mi finish stretch</span>
+        <span>North is up</span>
+        <a href="https://www.google.com/maps/search/?api=1&query=Sugar+House+Park+Salt+Lake+City" target="_blank" rel="noopener">Open park in Google Maps ↗</a>
+      </div>
+    </div>
+
+    <aside class="rail">
+      <div class="panel">
+        <h2>On course</h2>
+        <div class="readout">
+          <div><span class="k">Distance</span><span class="v" id="r-dist">0.00 mi</span></div>
+          <div><span class="k">Elevation</span><span class="v" id="r-elev">— ft</span></div>
+          <div><span class="k">Grade</span><span class="v" id="r-grade">—</span></div>
+          <div><span class="k">Race clock</span><span class="v" id="r-clock">0:00</span></div>
+        </div>
+        <div class="passes" id="r-passes">Lap 1 · Start line</div>
+        <div class="legend">
+          <div class="legend-bar">
+            <span style="background:var(--g-down2)"></span><span style="background:var(--g-down)"></span><span style="background:var(--g-flat)"></span><span style="background:var(--g-up)"></span><span style="background:var(--g-up2)"></span>
+          </div>
+          <div class="legend-labels"><span>&lt; −3%</span><span>down</span><span>flat</span><span>up</span><span>&gt; 3%</span></div>
+        </div>
+      </div>
+
+      <div class="panel goal">
+        <h2>Goal time</h2>
+        <div class="goal-row">
+          <span class="goal-time" id="goal-time">25:00</span>
+          <span class="goal-pace" id="goal-pace">8:03 /mi</span>
+        </div>
+        <label for="goal" class="note">Slide to set a finish time. Splits are even-effort: slower on the climbs, faster on the descents.</label>
+        <input type="range" id="goal" min="900" max="3000" step="15" value="1500">
+        <div class="splits-wrap">
+          <table>
+            <thead><tr><th id="split-unit">Mile</th><th>Split</th><th>Pace</th><th>Clock</th></tr></thead>
+            <tbody id="splits"></tbody>
+          </table>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <section class="panel profile-panel" aria-label="Elevation profile">
+    <div class="profile-head">
+      <h2>Elevation profile</h2>
+      <span id="profile-sub">Feet above sea level · 2 laps, 2 climbs per lap</span>
+    </div>
+    <div class="profile-scroll">
+      <svg id="profile" viewBox="0 0 1000 280" role="img" aria-label="Elevation profile of the 5K course"></svg>
+    </div>
+  </section>
+
+  <section class="details">
+    <div><h3>Start &amp; finish</h3><p>Start on the north side of the loop near the 2100 South entrance, running clockwise. Lap 2 begins when you pass the start arch. After lap 2, carry on 0.35 mi (558 m) to the finish on the northeast side.</p></div>
+    <div><h3>The hills</h3><p>Each lap has two climbs: a sharp pull up the southeast hill after crossing Parleys Creek, and a shorter rise on the northwest side past the pond. The long south side runs high and rolling.</p></div>
+    <div><h3>About this map</h3><p>The loop is the park's inner paved road, 1.38 mi with about 92 ft of climbing per lap. The route line and elevation curve are drawn to those figures and are close but not survey-grade. Check the course with a GPS watch before race day.</p></div>
+  </section>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  const NS = "http://www.w3.org/2000/svg";
+  const M_PER_MI = 1609.344;
+  const LOOP_M = 1.38 * M_PER_MI;          // 2220.9 m
+  const COURSE_M = 5000;
+  const STEP = 5;
+  const FT = 3.28084;
+
+  // Loop road control points in local meters (x east, y north) from the park's SW corner. Clockwise from the north entrance.
+  const CP = [
+    [330, 500], [470, 506], [600, 492], [705, 462], [768, 395], [782, 292], [762, 192], [702, 112],
+    [600, 74], [480, 68], [360, 84], [240, 96], [140, 122], [80, 192], [68, 292], [94, 382], [158, 450], [240, 490]
+  ];
+
+  // Elevation keyframes along the loop (fraction of lap, feet). Scaled below so each lap climbs 92 ft.
+  const EK = [
+    [0, 4352], [0.08, 4356], [0.2, 4372], [0.27, 4362], [0.33, 4350], [0.45, 4398],
+    [0.52, 4393], [0.58, 4399], [0.75, 4340], [0.9, 4362], [1, 4352]
+  ];
+  const BASE = 4352;
+  let rawGain = 0;
+  for (let i = 1; i < EK.length; i++) rawGain += Math.max(0, EK[i][1] - EK[i - 1][1]);
+  const ESCALE = 92 / rawGain;
+  function elevAtFrac(t) {
+    t = ((t % 1) + 1) % 1;
+    for (let i = 1; i < EK.length; i++) {
+      if (t <= EK[i][0]) {
+        const [t0, e0] = EK[i - 1], [t1, e1] = EK[i];
+        const u = (t - t0) / (t1 - t0);
+        const s = 0.45 * u + 0.55 * (1 - Math.cos(Math.PI * u)) / 2;
+        return BASE + (e0 + (e1 - e0) * s - BASE) * ESCALE;
+      }
+    }
+    return BASE;
+  }
+
+  // Closed Catmull-Rom spline through CP, with cumulative length for lookup.
+  const dense = [];
+  const n = CP.length;
+  for (let i = 0; i < n; i++) {
+    const p0 = CP[(i - 1 + n) % n], p1 = CP[i], p2 = CP[(i + 1) % n], p3 = CP[(i + 2) % n];
+    for (let k = 0; k < 24; k++) {
+      const t = k / 24, t2 = t * t, t3 = t2 * t;
+      const f = (a, b, c, d) => 0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
+      dense.push([f(p0[0], p1[0], p2[0], p3[0]), f(p0[1], p1[1], p2[1], p3[1])]);
+    }
+  }
+  dense.push(dense[0]);
+  const cum = [0];
+  for (let i = 1; i < dense.length; i++) cum.push(cum[i - 1] + Math.hypot(dense[i][0] - dense[i - 1][0], dense[i][1] - dense[i - 1][1]));
+  const RAW = cum[cum.length - 1];
+  function posAtFrac(t) {
+    const target = (((t % 1) + 1) % 1) * RAW;
+    let lo = 0, hi = cum.length - 1;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (cum[mid] <= target) lo = mid; else hi = mid; }
+    const u = (target - cum[lo]) / (cum[hi] - cum[lo] || 1);
+    return [dense[lo][0] + (dense[hi][0] - dense[lo][0]) * u, dense[lo][1] + (dense[hi][1] - dense[lo][1]) * u];
+  }
+
+  // Course samples every 5 m.
+  const course = [];
+  for (let d = 0; d <= COURSE_M; d += STEP) {
+    const frac = d / LOOP_M;
+    const e = elevAtFrac(frac);
+    const g = ((elevAtFrac((d + 15) / LOOP_M) - elevAtFrac((d - 15) / LOOP_M)) / FT) / 30 * 100;
+    course.push({ d, frac, pos: posAtFrac(frac), elev: e, grade: d === 0 ? (elevAtFrac(15 / LOOP_M) - e) / FT / 15 * 100 : g, lap: d < LOOP_M ? 1 : d < 2 * LOOP_M ? 2 : 3 });
+  }
+  let gain = 0, loss = 0, hi = -Infinity, lo = Infinity, maxG = 0;
+  course.forEach((c, i) => {
+    hi = Math.max(hi, c.elev); lo = Math.min(lo, c.elev); maxG = Math.max(maxG, c.grade);
+    if (i) { const de = c.elev - course[i - 1].elev; if (de > 0) gain += de; else loss -= de; }
+  });
+  const FINISH_LOOP_M = COURSE_M - 2 * LOOP_M;
+
+  function gradeColor(g) {
+    if (g < -3) return "var(--g-down2)";
+    if (g < -1) return "var(--g-down)";
+    if (g <= 1) return "var(--g-flat)";
+    if (g <= 3) return "var(--g-up)";
+    return "var(--g-up2)";
+  }
+
+  // State
+  let units = "mi";
+  let goalSec = 1500;
+  let cursorD = 0;
+  try { const u = localStorage.getItem("sh5k-units"); if (u === "km" || u === "mi") units = u; } catch (e) {}
+
+  // Even-effort time model: cost per meter rises on climbs, falls on descents.
+  function cost(g) { return g > 0 ? 1 + 0.033 * g : Math.max(0.88, 1 + 0.018 * g); }
+  let clock = [];
+  function buildClock() {
+    let total = 0;
+    const w = course.map((c, i) => { if (!i) return 0; const x = STEP * cost((c.grade + course[i - 1].grade) / 2); total += x; return x; });
+    clock = []; let acc = 0;
+    w.forEach((x) => { acc += x; clock.push(acc / total * goalSec); });
+  }
+  function clockAt(d) {
+    const i = Math.min(course.length - 1, Math.max(0, d / STEP));
+    const a = Math.floor(i), b = Math.min(course.length - 1, a + 1);
+    return clock[a] + (clock[b] - clock[a]) * (i - a);
+  }
+  function fmtTime(s) {
+    s = Math.round(s);
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
+    return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(r).padStart(2, "0");
+  }
+  const fmtDist = (d) => units === "mi" ? (d / M_PER_MI).toFixed(2) + " mi" : (d / 1000).toFixed(2) + " km";
+
+  // ---------- Stats ----------
+  function renderStats() {
+    const s = [
+      ["Distance", units === "mi" ? "3.11 mi" : "5.00 km", units === "mi" ? "5.00 km" : "3.11 mi"],
+      ["Laps", "2 + run-in", "1.38 mi loop · " + (FINISH_LOOP_M / M_PER_MI).toFixed(2) + " mi to finish"],
+      ["Climbing", Math.round(gain) + " ft", Math.round(gain / FT) + " m total gain"],
+      ["High point", Math.round(hi).toLocaleString() + " ft", "Southeast hill"],
+      ["Low point", Math.round(lo).toLocaleString() + " ft", "Northwest, by the pond"],
+      ["Steepest", maxG.toFixed(1) + "%", "Southeast hill climb"]
+    ];
+    document.getElementById("stats").innerHTML = s.map(([k, v, sub]) => `<div class="stat"><span class="k">${k}</span><span class="v">${v}</span><span class="s">${sub}</span></div>`).join("");
+  }
+
+  // ---------- Map ----------
+  const map = document.getElementById("map");
+  const MX = 85, MY = 690, MS = 1.0;              // local meters → SVG units
+  const P = (p) => [MX + p[0] * MS, MY - p[1] * MS];
+  function el(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  const pathD = (pts) => pts.map((p, i) => (i ? "L" : "M") + P(p)[0].toFixed(1) + " " + P(p)[1].toFixed(1)).join(" ");
+
+  let mapDot, mapDotRing, markerLayer;
+  function drawMap() {
+    map.innerHTML = "";
+    el("rect", { x: 0, y: 0, width: 1000, height: 760, style: "fill:var(--bg)" }, map);
+    // Streets
+    const streets = el("g", {}, map);
+    const street = (x1, y1, x2, y2, w, fill, edge) => {
+      el("line", { x1, y1, x2, y2, style: `stroke:${edge};stroke-width:${w + 3};stroke-linecap:square` }, streets);
+      el("line", { x1, y1, x2, y2, style: `stroke:${fill};stroke-width:${w};stroke-linecap:square` }, streets);
+    };
+    street(0, 52, 1000, 52, 18, "var(--street)", "var(--street-edge)");         // 2100 South
+    street(52, 0, 52, 760, 16, "var(--street)", "var(--street-edge)");         // 1300 East
+    street(948, 0, 948, 760, 16, "var(--street)", "var(--street-edge)");       // 1700 East
+    street(0, 728, 1000, 728, 26, "var(--freeway)", "var(--freeway-edge)");    // I-80
+    // Park ground
+    el("rect", { x: 70, y: 68, width: 862, height: 642, rx: 18, style: "fill:var(--grass)" }, map);
+    // Trees (seeded scatter, kept off the loop)
+    let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const trees = el("g", {}, map);
+    for (let i = 0; i < 260; i++) {
+      const x = 80 + rnd() * 842, y = 78 + rnd() * 622;
+      const lx = (x - MX) / MS, ly = (MY - y) / MS;
+      let near = false;
+      for (let j = 0; j < dense.length; j += 3) if (Math.hypot(dense[j][0] - lx, dense[j][1] - ly) < 22) { near = true; break; }
+      if (near) continue;
+      if (Math.hypot((lx - 215) / 95, (ly - 318) / 62) < 1.15) continue;
+      el("circle", { cx: x.toFixed(1), cy: y.toFixed(1), r: (4 + rnd() * 6).toFixed(1), style: "fill:var(--tree);opacity:.75" }, trees);
+    }
+    // Inner meadow
+    el("path", { d: pathD(dense) + "Z", style: "fill:var(--grass-2);opacity:.6" }, map);
+    // Parleys Creek and Fabian Lagoon
+    const creek = [[860, 150], [770, 158], [700, 176], [610, 214], [520, 232], [430, 258], [350, 290], [292, 312]];
+    el("path", { d: "M" + creek.map((p) => P(p).map((v) => v.toFixed(1)).join(" ")).join(" L"), style: "fill:none;stroke:var(--water-edge);stroke-width:5;stroke-linecap:round;stroke-linejoin:round" }, map);
+    const pc = P([215, 318]);
+    el("ellipse", { cx: pc[0], cy: pc[1], rx: 92, ry: 56, transform: `rotate(-12 ${pc[0]} ${pc[1]})`, style: "fill:var(--water);stroke:var(--water-edge);stroke-width:2" }, map);
+    const lb = (x, y, t, cls, extra) => { const e = el("text", Object.assign({ x, y, class: cls }, extra || {}), map); e.textContent = t; return e; };
+    lb(pc[0], pc[1] + 4, "Fabian Lagoon", "lbl", { "text-anchor": "middle", "font-size": 11 });
+    const cl = P([560, 205]);
+    lb(cl[0], cl[1] + 22, "Parleys Creek", "lbl", { "text-anchor": "middle", "font-size": 11, "font-style": "italic" });
+    const pk = P([470, 300]);
+    lb(pk[0], pk[1], "SUGAR HOUSE PARK", "park-lbl", { "text-anchor": "middle" });
+    lb(500, 44, "2100 South", "street-lbl", { "text-anchor": "middle" });
+    lb(500, 756, "Interstate 80", "street-lbl", { "text-anchor": "middle" });
+    lb(30, 380, "1300 East", "street-lbl", { "text-anchor": "middle", transform: "rotate(-90 30 380)" });
+    lb(974, 380, "1700 East", "street-lbl", { "text-anchor": "middle", transform: "rotate(90 974 380)" });
+    // North arrow
+    const na = el("g", { transform: "translate(905 112)" }, map);
+    el("circle", { r: 18, style: "fill:var(--surface);stroke:var(--line)" }, na);
+    el("path", { d: "M0 -11 L6 6 L0 2 L-6 6Z", style: "fill:var(--ink)" }, na);
+    const nt = el("text", { y: 32, "text-anchor": "middle", class: "lbl", "font-size": 11 }, na); nt.textContent = "N";
+
+    // Route: casing then grade-colored segments (one lap; both laps share the road).
+    const lap = course.filter((c) => c.d <= LOOP_M + STEP);
+    el("path", { d: pathD(dense), style: "fill:none;stroke:var(--casing);stroke-width:17;stroke-linejoin:round" }, map);
+    const segs = el("g", {}, map);
+    for (let i = 1; i < lap.length; i++) {
+      const a = P(lap[i - 1].pos), b = P(lap[i].pos);
+      el("line", { x1: a[0].toFixed(1), y1: a[1].toFixed(1), x2: b[0].toFixed(1), y2: b[1].toFixed(1), style: `stroke:${gradeColor(lap[i].grade)};stroke-width:11;stroke-linecap:round` }, segs);
+    }
+    // Direction chevrons
+    const chev = el("g", {}, map);
+    for (let m = 140; m < LOOP_M; m += 280) {
+      const a = P(posAtFrac(m / LOOP_M)), b = P(posAtFrac((m + 6) / LOOP_M));
+      const ang = Math.atan2(b[1] - a[1], b[0] - a[0]) * 180 / Math.PI;
+      el("path", { d: "M-3 -4 L2 0 L-3 4", transform: `translate(${a[0].toFixed(1)} ${a[1].toFixed(1)}) rotate(${ang.toFixed(1)})`, style: "fill:none;stroke:var(--casing);stroke-width:2;stroke-linecap:round;stroke-linejoin:round" }, chev);
+    }
+    // Hill labels
+    const hill = (frac, text, dx, dy) => {
+      const p = P(posAtFrac(frac));
+      const g = el("g", { transform: `translate(${(p[0] + dx).toFixed(1)} ${(p[1] + dy).toFixed(1)})` }, map);
+      const t = el("text", { class: "lbl", "font-size": 11.5, "text-anchor": "middle", style: "font-weight:600;fill:var(--ink)" }, g);
+      t.textContent = text;
+    };
+    hill(0.40, "▲ Southeast hill", 70, 34);
+    hill(0.83, "▲ Pond rise", 62, 6);
+
+    markerLayer = el("g", {}, map);
+    drawMarkers();
+
+    mapDotRing = el("circle", { r: 14, style: "fill:var(--accent);opacity:.22" }, map);
+    mapDot = el("circle", { r: 7, style: "fill:var(--accent);stroke:var(--casing);stroke-width:3" }, map);
+    // Hit target for scrubbing
+    el("path", { d: pathD(dense) + "Z", style: "fill:none;stroke:transparent;stroke-width:40;cursor:crosshair;pointer-events:stroke" }, map).id = "map-hit";
+  }
+
+  function drawMarkers() {
+    markerLayer.innerHTML = "";
+    const unitM = units === "mi" ? M_PER_MI : 1000;
+    const flag = (d, label, fill, w) => {
+      const p = P(posAtFrac(d / LOOP_M));
+      const g = el("g", { transform: `translate(${p[0].toFixed(1)} ${p[1].toFixed(1)})` }, markerLayer);
+      el("rect", { x: -w / 2, y: -10, width: w, height: 20, rx: 10, style: `fill:${fill};stroke:var(--casing);stroke-width:2.5` }, g);
+      const t = el("text", { y: 4.5, "text-anchor": "middle", class: "mk-txt" }, g);
+      t.textContent = label;
+      return g;
+    };
+    for (let k = 1; k * unitM < COURSE_M - 50; k++) flag(k * unitM, String(k), "var(--ink)", 22);
+    // Water stop on the south side, passed twice.
+    const wp = P(posAtFrac(1150 / LOOP_M));
+    const wg = el("g", { transform: `translate(${wp[0].toFixed(1)} ${(wp[1] + 30).toFixed(1)})` }, markerLayer);
+    el("rect", { x: -38, y: -11, width: 76, height: 22, rx: 4, style: "fill:var(--surface);stroke:var(--g-down2);stroke-width:1.5" }, wg);
+    const wt = el("text", { y: 4, "text-anchor": "middle", class: "lbl", "font-size": 11, style: "fill:var(--g-down2);font-weight:600" }, wg); wt.textContent = "💧 Water";
+    flag(0, "START", "var(--accent)", 58);
+    const f = flag(FINISH_LOOP_M, "FINISH", "var(--g-up2)", 62);
+    f.setAttribute("transform", f.getAttribute("transform") + " translate(0 -24)");
+  }
+
+  // ---------- Profile ----------
+  const prof = document.getElementById("profile");
+  const PL = 52, PR = 984, PT = 26, PB = 236;
+  let eMin, eMax, pCursor, pCursorDot, pLabel;
+  const px = (d) => PL + d / COURSE_M * (PR - PL);
+  const py = (e) => PB - (e - eMin) / (eMax - eMin) * (PB - PT);
+  function drawProfile() {
+    prof.innerHTML = "";
+    eMin = Math.floor((lo - 8) / 10) * 10; eMax = Math.ceil((hi + 12) / 10) * 10;
+    el("rect", { x: 0, y: 0, width: 1000, height: 280, style: "fill:var(--surface)" }, prof);
+    // Grid + y labels
+    for (let e = eMin; e <= eMax; e += 10) {
+      el("line", { x1: PL, x2: PR, y1: py(e), y2: py(e), style: "stroke:var(--line);stroke-width:1" }, prof);
+      const t = el("text", { x: PL - 8, y: py(e) + 4, "text-anchor": "end", class: "lbl", "font-size": 11 }, prof);
+      t.textContent = e.toLocaleString();
+    }
+    // Lap bands
+    [[0, LOOP_M, "LAP 1"], [LOOP_M, 2 * LOOP_M, "LAP 2"], [2 * LOOP_M, COURSE_M, "RUN-IN"]].forEach(([a, b, name], i) => {
+      if (i) el("line", { x1: px(a), x2: px(a), y1: PT - 14, y2: PB, style: "stroke:var(--muted);stroke-width:1;stroke-dasharray:3 4" }, prof);
+      const t = el("text", { x: (px(a) + px(b)) / 2, y: PT - 8, "text-anchor": "middle", class: "lbl", "font-size": 11, style: "letter-spacing:.12em;font-weight:600" }, prof);
+      t.textContent = name;
+    });
+    // Grade-colored fill
+    const fill = el("g", {}, prof);
+    for (let i = 1; i < course.length; i++) {
+      const a = course[i - 1], b = course[i];
+      el("path", { d: `M${px(a.d).toFixed(2)} ${PB} L${px(a.d).toFixed(2)} ${py(a.elev).toFixed(2)} L${px(b.d).toFixed(2)} ${py(b.elev).toFixed(2)} L${px(b.d).toFixed(2)} ${PB}Z`, style: `fill:${gradeColor(b.grade)};stroke:${gradeColor(b.grade)};stroke-width:.6;opacity:.55` }, fill);
+    }
+    el("path", { d: course.map((c, i) => (i ? "L" : "M") + px(c.d).toFixed(2) + " " + py(c.elev).toFixed(2)).join(" "), style: "fill:none;stroke:var(--ink);stroke-width:2;stroke-linejoin:round" }, prof);
+    // Hill callouts at each lap's peaks
+    [[0.45, "SE hill"], [0.9, "Pond rise"]].forEach(([f, name]) => {
+      for (let L = 0; L < 2; L++) {
+        const d = (L + f) * LOOP_M, e = elevAtFrac(f);
+        const t = el("text", { x: px(d), y: py(e) - 9, "text-anchor": "middle", class: "lbl", "font-size": 11, style: "fill:var(--ink);font-weight:600" }, prof);
+        t.textContent = "▲ " + name;
+      }
+    });
+    // X axis
+    el("line", { x1: PL, x2: PR, y1: PB, y2: PB, style: "stroke:var(--muted);stroke-width:1" }, prof);
+    const unitM = units === "mi" ? M_PER_MI : 1000;
+    const tickStep = units === "mi" ? M_PER_MI / 2 : 500;
+    for (let d = 0; d <= COURSE_M + 1; d += tickStep) {
+      const major = Math.abs(d / unitM - Math.round(d / unitM)) < 1e-6;
+      el("line", { x1: px(d), x2: px(d), y1: PB, y2: PB + (major ? 7 : 4), style: "stroke:var(--muted);stroke-width:1" }, prof);
+      if (major) { const t = el("text", { x: px(d), y: PB + 21, "text-anchor": "middle", class: "lbl", "font-size": 11 }, prof); t.textContent = Math.round(d / unitM) + (d ? "" : " " + units); }
+    }
+    const fin = el("text", { x: PR, y: PB + 36, "text-anchor": "end", class: "lbl", "font-size": 11, style: "font-weight:600" }, prof);
+    fin.textContent = units === "mi" ? "Finish 3.11 mi" : "Finish 5.00 km";
+    const yl = el("text", { x: PL, y: PB + 36, class: "lbl", "font-size": 11 }, prof); yl.textContent = "Elevation in feet";
+    // Cursor
+    pCursor = el("line", { y1: PT - 4, y2: PB, style: "stroke:var(--accent);stroke-width:1.5" }, prof);
+    pCursorDot = el("circle", { r: 5.5, style: "fill:var(--accent);stroke:var(--surface);stroke-width:2.5" }, prof);
+    pLabel = el("text", { "text-anchor": "middle", class: "lbl", "font-size": 11.5, style: "fill:var(--accent);font-weight:600" }, prof);
+  }
+
+  // ---------- Cursor + readout ----------
+  function setCursor(d, passes) {
+    cursorD = Math.max(0, Math.min(COURSE_M, d));
+    const i = Math.round(cursorD / STEP), c = course[i];
+    const p = P(c.pos);
+    mapDot.setAttribute("cx", p[0]); mapDot.setAttribute("cy", p[1]);
+    mapDotRing.setAttribute("cx", p[0]); mapDotRing.setAttribute("cy", p[1]);
+    const x = px(cursorD), y = py(c.elev);
+    pCursor.setAttribute("x1", x); pCursor.setAttribute("x2", x);
+    pCursorDot.setAttribute("cx", x); pCursorDot.setAttribute("cy", y);
+    pLabel.setAttribute("x", Math.max(PL + 30, Math.min(PR - 30, x))); pLabel.setAttribute("y", PT - 22 < 0 ? 12 : PT - 22 + 10);
+    pLabel.textContent = "";
+    document.getElementById("r-dist").textContent = fmtDist(cursorD);
+    document.getElementById("r-elev").textContent = Math.round(c.elev).toLocaleString() + " ft";
+    const g = c.grade;
+    document.getElementById("r-grade").innerHTML = `<span class="chip" style="background:${gradeColor(g)}"></span>${g > 0 ? "+" : ""}${g.toFixed(1)}%`;
+    document.getElementById("r-clock").textContent = fmtTime(clockAt(cursorD));
+    const where = cursorD < 1 ? "Start line" : cursorD >= COURSE_M - 1 ? "Finish line" : c.lap === 3 ? "Run-in to finish" : "Lap " + c.lap;
+    document.getElementById("r-passes").textContent = passes || where;
+  }
+
+  function profileD(evt) {
+    const r = prof.getBoundingClientRect();
+    const x = (evt.clientX - r.left) / r.width * 1000;
+    return (x - PL) / (PR - PL) * COURSE_M;
+  }
+  function bindScrub(target, handler) {
+    let down = false;
+    target.addEventListener("pointerdown", (e) => { down = true; stopPlay(); target.setPointerCapture && target.setPointerCapture(e.pointerId); handler(e); });
+    target.addEventListener("pointermove", (e) => { if (down || e.pointerType === "mouse") { if (!playing) handler(e); } });
+    target.addEventListener("pointerup", () => { down = false; });
+    target.addEventListener("pointercancel", () => { down = false; });
+  }
+  bindScrub(prof, (e) => setCursor(profileD(e)));
+  bindScrub(map, (e) => {
+    const pt = map.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+    const sp = pt.matrixTransform(map.getScreenCTM().inverse());
+    const lx = (sp.x - MX) / MS, ly = (MY - sp.y) / MS;
+    let best = -1, bd = Infinity;
+    for (let i = 0; i < course.length && course[i].d <= LOOP_M; i++) {
+      const q = course[i].pos, dd = (q[0] - lx) ** 2 + (q[1] - ly) ** 2;
+      if (dd < bd) { bd = dd; best = i; }
+    }
+    if (best < 0 || bd > 60 * 60) return;
+    const base = course[best].d;
+    const hits = [base, base + LOOP_M, base + 2 * LOOP_M].filter((d) => d <= COURSE_M + 1);
+    setCursor(base, "You pass here at " + hits.map((d) => fmtDist(Math.min(d, COURSE_M))).join(", "));
+  });
+
+  // ---------- Splits ----------
+  function renderSplits() {
+    buildClock();
+    const unitM = units === "mi" ? M_PER_MI : 1000;
+    document.getElementById("split-unit").textContent = units === "mi" ? "Mile" : "Km";
+    document.getElementById("goal-time").textContent = fmtTime(goalSec);
+    document.getElementById("goal-pace").textContent = fmtTime(goalSec / (COURSE_M / unitM)) + " /" + units;
+    let prev = 0, rows = "";
+    for (let k = 1; prev < COURSE_M - 1; k++) {
+      const d = Math.min(k * unitM, COURSE_M), t = clockAt(d), tp = clockAt(prev);
+      const len = d - prev, split = t - tp;
+      const idx0 = Math.round(prev / STEP), idx1 = Math.round(d / STEP);
+      let up = 0; for (let i = idx0 + 1; i <= idx1; i++) up += Math.max(0, course[i].elev - course[i - 1].elev);
+      const label = d === COURSE_M && len < unitM - 1 ? "Final " + (len / unitM).toFixed(2) : String(k);
+      rows += `<tr><td><span class="chip" style="background:${up > 70 ? "var(--g-up2)" : up > 40 ? "var(--g-up)" : "var(--g-flat)"}" title="${Math.round(up)} ft of climbing"></span>${label}</td><td>${fmtTime(split)}</td><td>${fmtTime(split / len * unitM)}</td><td>${fmtTime(t)}</td></tr>`;
+      prev = d;
+    }
+    document.getElementById("splits").innerHTML = rows;
+  }
+
+  // ---------- Run the course animation ----------
+  let playing = false, raf = 0, t0 = 0;
+  const playBtn = document.getElementById("play");
+  const ANIM_MS = 16000;
+  function stopPlay() { playing = false; cancelAnimationFrame(raf); playBtn.textContent = "▶ Run the course"; }
+  function tick(now) {
+    const frac = Math.min(1, (now - t0) / ANIM_MS);
+    const target = frac * goalSec;
+    let loI = 0, hiI = clock.length - 1;
+    while (hiI - loI > 1) { const m = (loI + hiI) >> 1; if (clock[m] <= target) loI = m; else hiI = m; }
+    const u = (target - clock[loI]) / ((clock[hiI] - clock[loI]) || 1);
+    setCursor(course[loI].d + u * STEP);
+    if (frac < 1 && playing) raf = requestAnimationFrame(tick); else stopPlay();
+  }
+  playBtn.addEventListener("click", () => {
+    if (playing) { stopPlay(); return; }
+    playing = true; playBtn.textContent = "■ Stop";
+    const startFrac = cursorD >= COURSE_M - 1 ? 0 : clockAt(cursorD) / goalSec;
+    t0 = performance.now() - startFrac * ANIM_MS;
+    raf = requestAnimationFrame(tick);
+  });
+
+  // ---------- Controls ----------
+  function setUnits(u) {
+    units = u;
+    try { localStorage.setItem("sh5k-units", u); } catch (e) {}
+    document.getElementById("u-mi").setAttribute("aria-pressed", u === "mi");
+    document.getElementById("u-km").setAttribute("aria-pressed", u === "km");
+    renderStats(); drawMarkers(); drawProfile(); renderSplits(); setCursor(cursorD);
+  }
+  document.getElementById("u-mi").addEventListener("click", () => setUnits("mi"));
+  document.getElementById("u-km").addEventListener("click", () => setUnits("km"));
+  document.getElementById("goal").addEventListener("input", (e) => { goalSec = +e.target.value; renderSplits(); setCursor(cursorD); });
+
+  drawMap();
+  setUnits(units);
+  setCursor(0);
+})();
+</script>
