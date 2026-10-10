@@ -12,7 +12,7 @@
   const PADDLE_H = 90;
   const PADDLE_MARGIN = 24;
   const BALL_R = 7;
-  const WIN_SCORE = 7;
+  const WIN_SCORE = 11;
 
   // Physics runs at a fixed rate, independent of the display's refresh rate.
   // Rendering interpolates between the last two physics states, so motion is
@@ -22,13 +22,16 @@
 
   const PLAYER_SPEED = 620; // keyboard
   const POINTER_SPEED = 1600; // mouse/touch follow speed
-  const MAX_BALL_SPEED = 1150;
-  const SPEEDUP = 1.05; // per paddle hit
   const MAX_HIT_ANGLE = (30 * Math.PI) / 180; // off the very edge of the paddle
   const MAX_AIM_SHIFT = 170; // how far across the court an edge hit aims the ball
   const CENTER_PULL = 0.35; // returns from wide positions drift back toward the middle
   const SERVE_DELAY = 1.0;
   const POINT_PAUSE = 0.9; // ball plays out briefly after a point is decided
+
+  // Rally speed: steady for the first few hits, then every hit is faster.
+  const RAMP_START = 4; // the 4th hit of a rally is the first faster one
+  const RAMP = 1.08; // speed gained per hit after that
+  const MAX_BALL_SPEED = 1150;
 
   // Ball flight
   const NET_CLEAR = 72; // height at which a shot crosses the net
@@ -37,19 +40,30 @@
   const BOUNCE_FRICTION = 0.96; // horizontal speed kept per bounce
   const LAND_MARGIN = 50; // un-spun shots land at least this far inside a sideline
 
-  // Spin: moving the paddle as you hit curves the ball that way.
+  // Spin: moving the paddle as you hit puts sidespin on the ball. It swings
+  // out against the spin, bends back across, then kicks off the bounce.
   const SPIN_REF = 1000; // paddle speed (units/s) that gives full spin
-  const SPIN_MIN = 0.4; // below this fraction of SPIN_REF, no spin
-  const MAX_CURVE = 170; // sideways drift of a full-spin shot by its first bounce
+  const SPIN_MIN = 0.35; // below this fraction of SPIN_REF, no spin
+  const MAX_CURVE = 360; // how far a full-spin shot bends in the air
+  const CURVE_NET = 0.3; // share of that bend that moves where it lands
+  const BOUNCE_KICK = 280; // sideways kick (units/s) off the first bounce at full spin
   const SPIN_AFTER_BOUNCE = 0.5; // share of the curve kept after each bounce
+
+  // Smash: a fast, deep, low shot that skids off the court.
+  const SMASH_WINDOW = 0.3; // seconds a smash stays ready after you press it
+  const SMASH_COOLDOWN = 0.8;
+  const SMASH_POWER = 1.45;
+  const SMASH_MAX_SPEED = 1450;
+  const SMASH_NET_CLEAR = 46;
+  const SMASH_RESTITUTION = 0.55;
 
   const PADDLE_REACH = 50; // how far past a sideline a paddle can step
   const OFF_FIELD = 130; // a ball this far past a sideline after landing in is gone
 
   const DIFFICULTIES = {
-    easy:   { cpuSpeed: 290, reaction: 0.22, error: 58, ballSpeed: 380, chaseOut: 0.35 },
-    medium: { cpuSpeed: 430, reaction: 0.12, error: 40, ballSpeed: 450, chaseOut: 0.12 },
-    hard:   { cpuSpeed: 620, reaction: 0.05, error: 27, ballSpeed: 520, chaseOut: 0 },
+    easy:   { cpuSpeed: 290, reaction: 0.22, error: 58, ballSpeed: 380, chaseOut: 0.35, smash: 0.03 },
+    medium: { cpuSpeed: 430, reaction: 0.12, error: 40, ballSpeed: 450, chaseOut: 0.12, smash: 0.07 },
+    hard:   { cpuSpeed: 620, reaction: 0.05, error: 27, ballSpeed: 520, chaseOut: 0, smash: 0.12 },
   };
 
   const PLAYER_FACE = PADDLE_MARGIN + PADDLE_W; // right edge of the player paddle
@@ -76,12 +90,16 @@
     over: document.getElementById('screen-over'),
   };
   const pauseBtn = document.getElementById('pause-btn');
+  const smashBtn = document.getElementById('smash-btn');
+  const flashEl = document.getElementById('flash');
   const hud = {
     player: document.getElementById('score-player'),
     cpu: document.getElementById('score-cpu'),
     cpuLabel: document.getElementById('cpu-label'),
     callout: document.getElementById('callout'),
+    rally: document.getElementById('rally'),
   };
+  const touchDevice = window.matchMedia('(pointer: coarse)').matches;
 
   if (!window.THREE) {
     document.getElementById('menu-sub').textContent =
@@ -97,15 +115,19 @@
     player: { y: (H - PADDLE_H) / 2, prevY: (H - PADDLE_H) / 2, vel: 0 },
     cpu: { y: (H - PADDLE_H) / 2, prevY: (H - PADDLE_H) / 2, vel: 0, target: H / 2, think: 0, aimError: 0, tracking: false, letGo: false },
     ball: {
-      x: W / 2, y: H / 2, z: HIT_HEIGHT, vx: 0, vy: 0, vz: 0, ay: 0, g: MIN_GRAVITY,
+      x: W / 2, y: H / 2, z: HIT_HEIGHT, vx: 0, vy: 0, vz: 0, ay: 0, g: MIN_GRAVITY, e: RESTITUTION,
       prevX: W / 2, prevY: H / 2, prevZ: HIT_HEIGHT,
-      speed: 0, spin: 0, bounced: false, rolling: false, lastHitter: null,
+      speed: 0, rallySpeed: 0, hits: 0, spin: 0, smash: false,
+      bounced: false, bounces: 0, rolling: false, lastHitter: null,
     },
     score: { player: 0, cpu: 0 },
     server: 'player',
     serveTimer: 0,
     deadTimer: 0, // > 0 while a decided point plays out
     nextServer: 'player',
+    timeScale: 1, // < 1 for slow motion on the winning point
+    smashReady: 0, // > 0 while a smash is primed
+    smashCooldown: 0,
   };
 
   const keys = new Set();
@@ -114,31 +136,122 @@
   let usingKeyboard = false; // only auto-focus menu buttons for keyboard users
 
   // ---- Audio ----
-  let audio = null;
-  function beep(freq, duration = 0.06, volume = 0.08, type = 'square') {
-    if (muted) return;
+  // Everything is synthesized with Web Audio: short noise bursts for the
+  // paddle "pock" and impacts, tones for bounces, buzzers and chimes.
+  let audio = null, master = null, noiseBuf = null;
+  function ctx() {
+    if (muted) return null;
     try {
-      audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+      if (!audio) {
+        audio = new (window.AudioContext || window.webkitAudioContext)();
+        const comp = audio.createDynamicsCompressor();
+        master = audio.createGain();
+        master.gain.value = 0.8;
+        master.connect(comp).connect(audio.destination);
+        noiseBuf = audio.createBuffer(1, audio.sampleRate, audio.sampleRate);
+        const data = noiseBuf.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+      }
       if (audio.state === 'suspended') audio.resume();
-      const osc = audio.createOscillator();
-      const gain = audio.createGain();
-      osc.type = type;
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(volume, audio.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + duration);
-      osc.connect(gain).connect(audio.destination);
-      osc.start();
-      osc.stop(audio.currentTime + duration);
-    } catch (_) { /* audio unavailable; play silently */ }
+      return audio;
+    } catch (_) {
+      return null; // audio unavailable; play silently
+    }
   }
+
+  function tone(f0, f1, dur, vol, type = 'sine', delay = 0) {
+    const a = ctx();
+    if (!a) return;
+    const t = a.currentTime + delay;
+    const osc = a.createOscillator();
+    const gain = a.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(f0, t);
+    if (f1 !== f0) osc.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(vol, t + 0.005);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.connect(gain).connect(master);
+    osc.start(t);
+    osc.stop(t + dur + 0.02);
+  }
+
+  function noise(dur, vol, filter, f0, f1, q = 1, delay = 0) {
+    const a = ctx();
+    if (!a) return;
+    const t = a.currentTime + delay;
+    const src = a.createBufferSource();
+    src.buffer = noiseBuf;
+    const biquad = a.createBiquadFilter();
+    biquad.type = filter;
+    biquad.Q.value = q;
+    biquad.frequency.setValueAtTime(f0, t);
+    biquad.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    const gain = a.createGain();
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(vol, t + 0.004);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(biquad).connect(gain).connect(master);
+    src.start(t, Math.random() * 0.5);
+    src.stop(t + dur + 0.02);
+  }
+
+  const sfx = {
+    click: () => tone(900, 900, 0.03, 0.06, 'square'),
+    hit(speedFrac) { // pickleball "pock", brighter as the rally speeds up
+      noise(0.045, 0.6, 'bandpass', 1500 + speedFrac * 900, 900, 4);
+      tone(560 + speedFrac * 320, 280, 0.08, 0.3, 'triangle');
+    },
+    spin: () => noise(0.3, 0.28, 'bandpass', 500, 2600, 2.5),
+    smashReady: () => noise(0.12, 0.12, 'bandpass', 2600, 900, 2),
+    smash() {
+      noise(0.14, 0.9, 'highpass', 3000, 1200);
+      tone(120, 36, 0.5, 0.8);
+      tone(240, 60, 0.2, 0.3, 'square');
+    },
+    bounce(strength) {
+      tone(180, 85, 0.07, 0.22 * strength);
+      noise(0.03, 0.18 * strength, 'lowpass', 900, 300);
+    },
+    smashLand() {
+      tone(85, 32, 0.4, 0.7);
+      noise(0.25, 0.45, 'lowpass', 700, 90);
+    },
+    out() {
+      tone(210, 210, 0.13, 0.22, 'square');
+      tone(150, 150, 0.24, 0.22, 'square', 0.15);
+    },
+    pointWin() {
+      tone(660, 660, 0.12, 0.25, 'triangle');
+      tone(990, 990, 0.24, 0.25, 'triangle', 0.1);
+    },
+    pointLose() {
+      tone(440, 440, 0.12, 0.2, 'triangle');
+      tone(294, 294, 0.28, 0.2, 'triangle', 0.1);
+    },
+    rally: (level) => tone(380 + level * 40, 900 + level * 80, 0.28, 0.14, 'triangle'),
+    matchPoint() {
+      tone(95, 45, 0.2, 0.7);
+      tone(95, 45, 0.3, 0.7, 'sine', 0.24);
+    },
+    win: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, f, 0.3, 0.22, 'triangle', i * 0.12)),
+    lose: () => [392, 330, 262].forEach((f, i) => tone(f, f * 0.98, 0.35, 0.2, 'triangle', i * 0.16)),
+  };
 
   // ---- Screens ----
   function showScreen(name) {
     for (const [key, el] of Object.entries(screens)) el.classList.toggle('hidden', key !== name);
     pauseBtn.classList.toggle('hidden', name !== null);
+    smashBtn.classList.toggle('hidden', name !== null || !touchDevice);
     const first = name && screens[name].querySelector('button');
     if (first && usingKeyboard) first.focus({ preventScroll: true });
     else if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+  }
+
+  function pulse(el, cls) {
+    el.classList.remove(cls);
+    void el.offsetWidth; // restart the animation
+    el.classList.add(cls);
   }
 
   function updateHud() {
@@ -147,13 +260,22 @@
     hud.cpuLabel.textContent = game.mode === 'menu' ? 'CPU' : 'CPU · ' + game.difficulty.toUpperCase();
   }
 
+  function updateRally() {
+    const n = game.ball.hits;
+    hud.rally.textContent = n >= 3 ? `RALLY ${n}` : '';
+    hud.rally.classList.toggle('hot', n >= RAMP_START);
+  }
+
   function callout(text, accent = false) {
-    const el = hud.callout;
-    el.textContent = text;
-    el.classList.toggle('accent', accent);
-    el.classList.remove('show');
-    void el.offsetWidth; // restart the animation
-    el.classList.add('show');
+    hud.callout.textContent = text;
+    hud.callout.classList.toggle('accent', accent);
+    pulse(hud.callout, 'show');
+  }
+
+  function screenFlash(kind) {
+    flashEl.className = '';
+    void flashEl.offsetWidth;
+    flashEl.className = 'show ' + kind;
   }
 
   function goToMenu() {
@@ -193,11 +315,12 @@
 
   function endGame() {
     game.mode = 'over';
+    game.timeScale = 1;
     const won = game.score.player > game.score.cpu;
     document.getElementById('over-title').textContent = won ? 'You win!' : 'CPU wins';
     document.getElementById('over-score').textContent =
       `${game.score.player} – ${game.score.cpu} on ${game.difficulty}`;
-    beep(won ? 880 : 180, 0.35, 0.1);
+    (won ? sfx.win : sfx.lose)();
     showScreen('over');
   }
 
@@ -207,11 +330,16 @@
     game.server = server;
     game.serveTimer = SERVE_DELAY;
     game.deadTimer = 0;
+    game.timeScale = 1;
+    game.smashReady = 0;
     b.speed = 0;
+    b.hits = 0;
     b.spin = 0;
+    b.smash = false;
     b.ay = 0;
     b.rolling = false;
     b.bounced = false;
+    b.bounces = 0;
     b.lastHitter = null;
     holdBall();
     b.prevX = b.x;
@@ -219,6 +347,13 @@
     b.prevZ = b.z;
     game.cpu.think = 0;
     game.cpu.tracking = false;
+    updateRally();
+
+    const p = game.score.player, c = game.score.cpu;
+    if (game.mode === 'playing' && Math.max(p, c) === WIN_SCORE - 1) {
+      callout('MATCH POINT', true);
+      sfx.matchPoint();
+    }
   }
 
   // Before the serve, the ball sits just in front of the server's paddle.
@@ -239,19 +374,21 @@
     const landY = b.y < H / 2
       ? H / 2 + 40 + Math.random() * (H / 2 - 40 - LAND_MARGIN)
       : LAND_MARGIN + Math.random() * (H / 2 - 40 - LAND_MARGIN);
-    b.speed = DIFFICULTIES[game.difficulty].ballSpeed;
-    launch(dir, b.speed, landX, landY, 0);
+    b.rallySpeed = b.speed = DIFFICULTIES[game.difficulty].ballSpeed;
     b.spin = 0;
+    b.smash = false;
+    b.e = RESTITUTION;
+    launch(dir, b.speed, landX, landY, 0, NET_CLEAR);
     b.lastHitter = game.server;
-    beep(300, 0.05, 0.1, 'triangle');
+    sfx.hit(0);
   }
 
   // Send the ball from where it is so that its first bounce lands exactly at
   // (landX, landY). `curve` is how far spin bends it sideways on the way:
-  // the ball starts out aimed `curve` away from the landing spot and drifts
-  // onto it. Each shot gets its own gravity so it crosses the net at a
-  // consistent height whatever its speed.
-  function launch(dir, xSpeed, landX, landY, curve) {
+  // the ball starts out aimed `curve` away from the landing spot and swings
+  // onto it. Each shot gets its own gravity so it crosses the net at the
+  // height asked for, whatever its speed.
+  function launch(dir, xSpeed, landX, landY, curve, netClear) {
     const b = game.ball;
     const T = Math.abs(landX - b.x) / xSpeed;
     b.vx = dir * xSpeed;
@@ -260,37 +397,77 @@
 
     const f = Math.min(0.9, Math.max(0.1, Math.abs(W / 2 - b.x) / Math.abs(landX - b.x)));
     const z0 = b.z - BALL_R;
-    b.g = Math.max(MIN_GRAVITY, (2 * (NET_CLEAR - z0 * (1 - f))) / (T * T * f * (1 - f)));
+    b.g = Math.max(MIN_GRAVITY, (2 * (netClear - z0 * (1 - f))) / (T * T * f * (1 - f)));
     b.vz = (0.5 * b.g * T * T - z0) / T;
     b.rolling = false;
     b.bounced = false;
+    b.bounces = 0;
   }
 
-  function hitBall(side, paddleY, paddleVel) {
+  function hitBall(side, paddleY, paddleVel, smash) {
     const b = game.ball;
     const dir = side === 'player' ? 1 : -1;
+
+    // Rally speed: steady at first, then every hit is faster.
+    b.hits++;
+    b.rallySpeed = Math.max(b.rallySpeed, DIFFICULTIES[game.difficulty].ballSpeed);
+    if (b.hits >= RAMP_START) b.rallySpeed = Math.min(MAX_BALL_SPEED, b.rallySpeed * RAMP);
+    const speed = smash ? Math.min(SMASH_MAX_SPEED, b.rallySpeed * SMASH_POWER) : b.rallySpeed;
+
     const rel = Math.max(-1, Math.min(1, (b.y - (paddleY + PADDLE_H / 2)) / (PADDLE_H / 2 + BALL_R)));
-    const angle = rel * MAX_HIT_ANGLE;
-    b.speed = Math.min(MAX_BALL_SPEED, b.speed * SPEEDUP);
-    const xSpeed = b.speed * Math.cos(angle);
+    const xSpeed = speed * Math.cos(rel * MAX_HIT_ANGLE);
 
     // Every return lands in the opponent's court, between the kitchen line
-    // and the baseline. Where the paddle meets the ball sets where it's aimed
-    // across the court, but without spin it always lands inside the sidelines.
-    const landX = W / 2 + dir * (KITCHEN + (0.4 + 0.5 * Math.random()) * (HALF_COURT - KITCHEN));
-    const aimY = Math.max(LAND_MARGIN, Math.min(H - LAND_MARGIN, b.y + (H / 2 - b.y) * CENTER_PULL + rel * MAX_AIM_SHIFT));
+    // and the baseline (a smash goes deep). Where the paddle meets the ball
+    // sets where it's aimed across the court, but without spin it always
+    // lands inside the sidelines.
+    const depth = smash ? 0.7 + 0.25 * Math.random() : 0.4 + 0.5 * Math.random();
+    const landX = W / 2 + dir * (KITCHEN + depth * (HALF_COURT - KITCHEN));
+    const aimY = Math.max(LAND_MARGIN, Math.min(H - LAND_MARGIN,
+      b.y + (H / 2 - b.y) * CENTER_PULL + rel * MAX_AIM_SHIFT));
 
-    // Spin can carry it past a sideline: that's the only way to hit out.
+    // Spin bends the ball hard, but only part of that bend moves where it
+    // lands: heavy outward spin on a wide shot is the only way to hit out.
     const s = Math.max(-1, Math.min(1, paddleVel / SPIN_REF));
     const spin = Math.sign(s) * Math.max(0, (Math.abs(s) - SPIN_MIN) / (1 - SPIN_MIN));
     const curve = spin * MAX_CURVE;
 
-    launch(dir, xSpeed, landX, aimY + curve, curve);
+    b.speed = speed;
     b.spin = spin;
+    b.smash = smash;
+    b.e = smash ? SMASH_RESTITUTION : RESTITUTION;
+    launch(dir, xSpeed, landX, aimY + curve * CURVE_NET, curve, smash ? SMASH_NET_CLEAR : NET_CLEAR);
     b.lastHitter = side;
 
-    beep(side === 'player' ? 300 : 260, 0.05, 0.1, 'triangle'); // pickleball "pock"
-    if (side === 'player' && Math.abs(spin) >= 0.2) callout('SPIN', true);
+    // Feedback
+    const speedFrac = speedFraction();
+    fx.paddleFlash(side, smash ? 1.6 : 0.6 + speedFrac * 0.6);
+    fx.sparks(b.x, b.y, b.z, dir, smash ? 46 : 10 + Math.round(speedFrac * 14), smash ? 520 : 260);
+    if (smash) {
+      fx.shake(11);
+      sfx.smash();
+      callout('SMASH!', true);
+      screenFlash('smash');
+    } else {
+      sfx.hit(speedFrac);
+      if (Math.abs(spin) >= 0.2) {
+        sfx.spin();
+        fx.shake(2 + Math.abs(spin) * 2);
+        if (side === 'player') callout('SPIN', true);
+      }
+    }
+    updateRally();
+    if (b.hits === RAMP_START) {
+      callout('SPEED UP', true);
+      sfx.rally(0);
+    } else if (b.hits > RAMP_START && b.hits % 3 === 0) {
+      sfx.rally(Math.min(8, b.hits - RAMP_START));
+    }
+  }
+
+  function speedFraction() {
+    const b = game.ball;
+    return Math.max(0, Math.min(1, (b.speed - 380) / (SMASH_MAX_SPEED - 380)));
   }
 
   // Award a point; the ball keeps flying for a moment before the next serve.
@@ -298,16 +475,29 @@
     if (game.deadTimer > 0) return;
     game.score[winner]++;
     updateHud();
+    pulse(winner === 'player' ? hud.player : hud.cpu, 'bump');
     const who = winner === 'player' ? 'YOU' : 'CPU';
-    callout(reason ? `${reason} · POINT ${who}` : `POINT ${who}`);
-    beep(winner === 'player' ? 660 : 220, 0.18, 0.09);
+    callout(reason ? `${reason} · POINT ${who}` : `POINT ${who}`, winner === 'player');
+    if (reason) sfx.out();
+    (winner === 'player' ? sfx.pointWin : sfx.pointLose)();
+    screenFlash(winner === 'player' ? 'win' : 'lose');
+    fx.shake(4);
     game.nextServer = winner;
     game.deadTimer = POINT_PAUSE;
+    // The match-winning point plays out in slow motion.
+    if (game.score[winner] >= WIN_SCORE) game.timeScale = 0.3;
   }
 
   function finishPoint() {
     if (game.score.player >= WIN_SCORE || game.score.cpu >= WIN_SCORE) endGame();
     else resetRound(game.nextServer);
+  }
+
+  function triggerSmash() {
+    if (game.mode !== 'playing' || game.smashCooldown > 0) return;
+    game.smashReady = SMASH_WINDOW;
+    game.smashCooldown = SMASH_COOLDOWN;
+    sfx.smashReady();
   }
 
   // ---- Physics ----
@@ -331,6 +521,9 @@
       p.y = clampPaddle(p.y + Math.max(-maxMove, Math.min(maxMove, delta)));
     }
     p.vel = (p.y - before) / dt;
+
+    game.smashReady = Math.max(0, game.smashReady - dt);
+    game.smashCooldown = Math.max(0, game.smashCooldown - dt);
   }
 
   // Move a ball state forward by t seconds. Returns true if it bounced.
@@ -344,9 +537,11 @@
     s.vz -= s.g * t;
     if (s.z < BALL_R && s.vz < 0) {
       s.z = BALL_R;
-      s.vz = -s.vz * RESTITUTION;
+      s.vz = -s.vz * s.e;
       s.vx *= BOUNCE_FRICTION;
       s.vy *= BOUNCE_FRICTION;
+      s.bounces++;
+      if (s.bounces === 1) s.vy += s.spin * BOUNCE_KICK; // sidespin kicks off the court
       s.ay *= SPIN_AFTER_BOUNCE;
       if (s.vz < 25) { s.vz = 0; s.rolling = true; }
       return true;
@@ -357,12 +552,28 @@
   function advanceBall(t) {
     const b = game.ball;
     if (!advanceState(b, t)) return;
-    beep(150, 0.03, 0.06, 'triangle');
-    if (!b.bounced) {
+
+    const strength = Math.min(1, b.vz / 250 + 0.3);
+    if (b.bounces === 1) {
       b.bounced = true;
       showLandingMark(b.x, b.y);
+      if (b.smash) {
+        sfx.smashLand();
+        fx.shake(7);
+        fx.shockwave(b.x, b.y);
+        fx.dust(b.x, b.y, 30);
+      } else {
+        sfx.bounce(strength);
+        fx.dust(b.x, b.y, 6);
+      }
       // First bounce decides in or out; only the sidelines can be out.
       if (b.y < 0 || b.y > H) callPoint(b.lastHitter === 'player' ? 'cpu' : 'player', 'OUT');
+    } else {
+      sfx.bounce(strength * 0.7);
+      // Double-bounce rule: the receiver must hit it before it bounces twice.
+      // (Once it's already past their paddle, it's simply a winner.)
+      const beforePaddle = b.x - BALL_R >= PLAYER_FACE && b.x + BALL_R <= CPU_FACE;
+      if (b.bounces === 2 && beforePaddle) callPoint(b.lastHitter, 'DOUBLE BOUNCE');
     }
   }
 
@@ -371,11 +582,9 @@
   const lookahead = {};
   function predictForCpu() {
     const s = Object.assign(lookahead, game.ball);
-    let bounced = s.bounced;
     let landsOut = false;
     for (let i = 0; i < 600; i++) {
-      if (advanceState(s, 1 / 120) && !bounced) {
-        bounced = true;
+      if (advanceState(s, 1 / 120) && s.bounces === 1 && !game.ball.bounced) {
         landsOut = s.y < 0 || s.y > H;
       }
       if (s.x + BALL_R >= CPU_FACE) break;
@@ -456,12 +665,16 @@
 
       advanceBall(hitT);
       remaining -= hitT;
+      if (game.deadTimer > 0) break; // the ball double-bounced on its way in
       if (hit === 'player') {
         b.x = PLAYER_FACE + BALL_R;
-        hitBall('player', game.player.y, game.player.vel);
+        const smash = game.smashReady > 0;
+        game.smashReady = 0;
+        hitBall('player', game.player.y, game.player.vel, smash);
       } else {
         b.x = CPU_FACE - BALL_R;
-        hitBall('cpu', game.cpu.y, game.cpu.vel);
+        const d = DIFFICULTIES[game.difficulty];
+        hitBall('cpu', game.cpu.y, game.cpu.vel, b.z > 30 && Math.random() < d.smash);
       }
     }
 
@@ -510,8 +723,10 @@
   scene.fog = new THREE.Fog(0x050505, 1400, 2600);
 
   const camera = new THREE.PerspectiveCamera(36, W / H, 10, 4000);
-  camera.position.set(0, 900, 600);
-  camera.lookAt(0, 0, 25);
+  const CAMERA_POS = new THREE.Vector3(0, 900, 600);
+  const CAMERA_TARGET = new THREE.Vector3(0, 0, 25);
+  camera.position.copy(CAMERA_POS);
+  camera.lookAt(CAMERA_TARGET);
 
   scene.add(new THREE.HemisphereLight(0xffffff, 0x333333, 0.75));
   const sun = new THREE.DirectionalLight(0xffffff, 0.9);
@@ -636,9 +851,11 @@
     return shape;
   }
 
-  function makePaddle(faceMat, trimMat, tilt) {
+  function makePaddle(faceColor, trimMat, tilt) {
     const group = new THREE.Group();
     const r = 16;
+    // Each face has its own material so it can flash when it hits.
+    const faceMat = new THREE.MeshStandardMaterial({ color: faceColor, roughness: 0.55, emissive: 0xffb547, emissiveIntensity: 0 });
 
     const faceGeo = new THREE.ExtrudeGeometry(roundedRect(new THREE.Shape(), PADDLE_H - 4, FACE_H - 4, r - 2), {
       depth: 5, bevelEnabled: true, bevelThickness: 0.6, bevelSize: 0.6, bevelSegments: 2, curveSegments: 10,
@@ -673,13 +890,14 @@
     const holder = new THREE.Group();
     holder.rotation.z = tilt;
     holder.add(group);
+    holder.userData.faceMat = faceMat;
     scene.add(holder);
     return holder;
   }
 
   const PADDLE_TILT = (35 * Math.PI) / 180;
-  const playerPaddle = makePaddle(white, black, PADDLE_TILT); // white face, black trim
-  const cpuPaddle = makePaddle(black, white, -PADDLE_TILT); // black face, white trim
+  const playerPaddle = makePaddle(0xf2f2f0, black, PADDLE_TILT); // white face, black trim
+  const cpuPaddle = makePaddle(0x141414, white, -PADDLE_TILT); // black face, white trim
 
   // Amber pickleball with its characteristic holes.
   const ballTex = canvasTexture(256, 128, (g, cw, ch) => {
@@ -698,25 +916,28 @@
     }
   });
   const ballGeo = new THREE.SphereGeometry(BALL_R, 24, 16);
-  const ball = new THREE.Mesh(
-    ballGeo,
-    new THREE.MeshStandardMaterial({ map: ballTex, roughness: 0.6, emissive: 0x5a3000, emissiveIntensity: 0.5 })
-  );
+  const ballMat = new THREE.MeshStandardMaterial({ map: ballTex, roughness: 0.6, emissive: 0x5a3000, emissiveIntensity: 0.5 });
+  const ball = new THREE.Mesh(ballGeo, ballMat);
   scene.add(ball);
 
-  // Spin trail: fading amber ghosts behind a ball that's curving.
-  const TRAIL = 10;
+  // The ball lights the court around it, brighter as it speeds up.
+  const ballLight = new THREE.PointLight(0xffb547, 0, 240, 2);
+  scene.add(ballLight);
+
+  // Trail: fading amber ghosts behind a fast, spinning or smashed ball.
+  const TRAIL = 12;
   const trail = [];
   for (let i = 0; i < TRAIL; i++) {
     const m = new THREE.Mesh(ballGeo, new THREE.MeshBasicMaterial({
-      color: 0xffb547, transparent: true, opacity: 0.35 * (1 - i / TRAIL), depthWrite: false,
+      color: 0xffb547, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending,
     }));
-    m.scale.setScalar(1 - (0.6 * i) / TRAIL);
+    m.scale.setScalar(1 - (0.65 * i) / TRAIL);
     m.visible = false;
     scene.add(m);
     trail.push(m);
   }
-  const trailPoints = [];
+  const trailBuf = Array.from({ length: TRAIL * 2 }, () => new THREE.Vector3());
+  let trailHead = 0, trailCount = 0;
 
   // Soft shadow right under the ball: shrinks and fades as the ball rises,
   // so you can always read its height and where it will land.
@@ -746,6 +967,118 @@
     markAge = 0;
   }
 
+  // ---- Effects ----
+  // Sparks and dust share one particle pool; nothing is allocated per frame.
+  const MAX_PARTICLES = 220;
+  const pPos = new Float32Array(MAX_PARTICLES * 3);
+  const pCol = new Float32Array(MAX_PARTICLES * 3);
+  const pVel = new Float32Array(MAX_PARTICLES * 3);
+  const pLife = new Float32Array(MAX_PARTICLES);
+  const pMaxLife = new Float32Array(MAX_PARTICLES);
+  const pBase = new Float32Array(MAX_PARTICLES * 3);
+  const pGrav = new Float32Array(MAX_PARTICLES);
+  const pGeo = new THREE.BufferGeometry();
+  pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+  pGeo.setAttribute('color', new THREE.BufferAttribute(pCol, 3));
+  const particles = new THREE.Points(pGeo, new THREE.PointsMaterial({
+    size: 4, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  }));
+  particles.frustumCulled = false;
+  scene.add(particles);
+  let pNext = 0;
+
+  function emit(x, y, z, vx, vy, vz, life, r, g, b, grav) {
+    const i = pNext;
+    pNext = (pNext + 1) % MAX_PARTICLES;
+    pPos[i * 3] = x; pPos[i * 3 + 1] = y; pPos[i * 3 + 2] = z;
+    pVel[i * 3] = vx; pVel[i * 3 + 1] = vy; pVel[i * 3 + 2] = vz;
+    pBase[i * 3] = r; pBase[i * 3 + 1] = g; pBase[i * 3 + 2] = b;
+    pLife[i] = pMaxLife[i] = life;
+    pGrav[i] = grav;
+  }
+
+  // Shockwave ring for smash landings.
+  const waveMat = new THREE.MeshBasicMaterial({ color: 0xffb547, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
+  const wave = new THREE.Mesh(new THREE.RingGeometry(0.85, 1, 48), waveMat);
+  wave.rotation.x = -Math.PI / 2;
+  wave.position.y = 1;
+  scene.add(wave);
+  let waveAge = Infinity;
+
+  let shakeAmp = 0;
+  const flash = { player: 0, cpu: 0 };
+
+  const fx = {
+    shake(a) { shakeAmp = Math.max(shakeAmp, a); },
+    paddleFlash(side, amount) { flash[side] = Math.max(flash[side], amount); },
+    // Court (x, y, z) → world; sprays away from the paddle toward the net.
+    sparks(x, y, z, dir, count, speed) {
+      for (let i = 0; i < count; i++) {
+        const a = (Math.random() - 0.5) * Math.PI;
+        const v = speed * (0.4 + Math.random() * 0.6);
+        const amber = Math.random() < 0.7;
+        emit(x - W / 2, z, y - H / 2,
+          dir * Math.cos(a) * v, Math.random() * v * 0.7, Math.sin(a) * v,
+          0.25 + Math.random() * 0.35, 1, amber ? 0.71 : 1, amber ? 0.28 : 1, 600);
+      }
+    },
+    dust(x, y, count) {
+      for (let i = 0; i < count; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const v = 40 + Math.random() * 120;
+        emit(x - W / 2, 1, y - H / 2, Math.cos(a) * v, 20 + Math.random() * 60, Math.sin(a) * v,
+          0.3 + Math.random() * 0.4, 0.55, 0.55, 0.52, 200);
+      }
+    },
+    shockwave(x, y) {
+      wave.position.x = x - W / 2;
+      wave.position.z = y - H / 2;
+      waveAge = 0;
+    },
+  };
+
+  function updateEffects(dt, t) {
+    for (let i = 0; i < MAX_PARTICLES; i++) {
+      if (pLife[i] <= 0) continue;
+      pLife[i] -= dt;
+      const k = Math.max(0, pLife[i] / pMaxLife[i]);
+      pVel[i * 3 + 1] -= pGrav[i] * dt;
+      pPos[i * 3] += pVel[i * 3] * dt;
+      pPos[i * 3 + 1] = Math.max(0.5, pPos[i * 3 + 1] + pVel[i * 3 + 1] * dt);
+      pPos[i * 3 + 2] += pVel[i * 3 + 2] * dt;
+      pCol[i * 3] = pBase[i * 3] * k;
+      pCol[i * 3 + 1] = pBase[i * 3 + 1] * k;
+      pCol[i * 3 + 2] = pBase[i * 3 + 2] * k;
+    }
+    pGeo.attributes.position.needsUpdate = true;
+    pGeo.attributes.color.needsUpdate = true;
+
+    waveAge += dt;
+    if (waveAge < 0.55) {
+      const k = waveAge / 0.55;
+      wave.scale.setScalar(10 + k * 110);
+      waveMat.opacity = 0.9 * (1 - k);
+    } else {
+      waveMat.opacity = 0;
+    }
+
+    // Camera shake: smooth wobble that dies away quickly.
+    shakeAmp *= Math.exp(-dt * 7);
+    camera.position.set(
+      CAMERA_POS.x + Math.sin(t * 61) * shakeAmp,
+      CAMERA_POS.y + Math.sin(t * 47 + 1) * shakeAmp * 0.6,
+      CAMERA_POS.z + Math.sin(t * 53 + 2) * shakeAmp
+    );
+    camera.lookAt(CAMERA_TARGET);
+
+    for (const side of ['player', 'cpu']) {
+      flash[side] *= Math.exp(-dt * 8);
+      (side === 'player' ? playerPaddle : cpuPaddle).userData.faceMat.emissiveIntensity = flash[side];
+    }
+    // A primed smash makes your paddle glow.
+    if (game.smashReady > 0) playerPaddle.userData.faceMat.emissiveIntensity = Math.max(flash.player, 0.9);
+  }
+
   function resize() {
     const rect = canvas.getBoundingClientRect();
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -769,11 +1102,12 @@
     return paddleLift[side];
   }
 
-  function render(alpha, frameDt) {
+  function render(alpha, frameDt, now) {
     const b = game.ball;
     const bx = lerp(b.prevX, b.x, alpha);
     const by = lerp(b.prevY, b.y, alpha);
     const bz = lerp(b.prevZ, b.z, alpha);
+    const sceneDt = frameDt * game.timeScale;
 
     const py = lerp(game.player.prevY, game.player.y, alpha) + PADDLE_H / 2;
     const cy = lerp(game.cpu.prevY, game.cpu.y, alpha) + PADDLE_H / 2;
@@ -787,6 +1121,13 @@
     blob.scale.setScalar(1 + lift * 0.8);
     blobMat.opacity = 1 - lift * 0.7;
 
+    // Glow builds with speed.
+    const live = game.mode === 'playing' && game.serveTimer <= 0;
+    const speedFrac = live ? speedFraction() : 0;
+    ballMat.emissiveIntensity = 0.5 + speedFrac * 1.1 + (b.smash ? 0.6 : 0);
+    ballLight.position.copy(ball.position);
+    ballLight.intensity = live ? 0.3 + speedFrac * 1.8 + (b.smash ? 1.2 : 0) : 0;
+
     // Roll the ball in its direction of travel, plus sidespin.
     const dx = bx - lastBallX, dz = by - lastBallY;
     const dist = Math.hypot(dx, dz);
@@ -794,27 +1135,32 @@
       spinAxis.set(dz, 0, -dx).normalize();
       ball.rotateOnWorldAxis(spinAxis, dist / BALL_R);
     }
-    if (b.spin) ball.rotateOnWorldAxis(UP, -b.spin * frameDt * 30);
+    if (b.spin) ball.rotateOnWorldAxis(UP, -b.spin * sceneDt * 40);
     lastBallX = bx;
     lastBallY = by;
 
-    // Spin trail
-    const spinning = Math.abs(b.spin) > 0.05 && game.mode === 'playing' && game.serveTimer <= 0;
-    if (spinning) {
-      trailPoints.unshift(ball.position.clone());
-      if (trailPoints.length > TRAIL * 2) trailPoints.length = TRAIL * 2;
+    // Trail for spin, smashes and fast rallies.
+    const trailStrength = live ? Math.max(Math.abs(b.spin) > 0.05 ? 0.6 : 0, b.smash ? 1 : 0, (speedFrac - 0.25) * 1.3) : 0;
+    if (trailStrength > 0) {
+      trailBuf[trailHead].copy(ball.position);
+      trailHead = (trailHead + 1) % trailBuf.length;
+      trailCount = Math.min(trailBuf.length, trailCount + 1);
     } else {
-      trailPoints.length = 0;
+      trailCount = 0;
     }
     for (let i = 0; i < TRAIL; i++) {
-      const p = trailPoints[(i + 1) * 2 - 1];
-      trail[i].visible = !!p;
-      if (p) trail[i].position.copy(p);
+      const back = (i + 1) * 2 - 1;
+      const m = trail[i];
+      m.visible = back < trailCount;
+      if (!m.visible) continue;
+      m.position.copy(trailBuf[(trailHead - 1 - back + trailBuf.length * 2) % trailBuf.length]);
+      m.material.opacity = Math.min(1, trailStrength) * 0.45 * (1 - i / TRAIL);
     }
 
-    markAge += frameDt;
+    markAge += sceneDt;
     markMat.opacity = markAge < 1.2 ? 0.9 * (1 - markAge / 1.2) : 0;
 
+    updateEffects(sceneDt, now / 1000);
     renderer.render(scene, camera);
   }
 
@@ -827,19 +1173,19 @@
     last = now;
 
     if (game.mode === 'playing') {
-      accumulator += dt;
+      accumulator += dt * game.timeScale;
       while (accumulator >= STEP && game.mode === 'playing') {
         update(STEP);
         accumulator -= STEP;
       }
     }
 
-    render(game.mode === 'playing' ? accumulator / STEP : 1, dt);
+    render(game.mode === 'playing' ? accumulator / STEP : 1, dt, now);
     requestAnimationFrame(frame);
   }
 
   // ---- Input ----
-  const GAME_KEYS = new Set(['ArrowUp', 'ArrowDown', 'KeyW', 'KeyS', 'Space']);
+  const GAME_KEYS = new Set(['ArrowUp', 'ArrowDown', 'KeyW', 'KeyS', 'Space', 'Tab']);
 
   window.addEventListener('pointerdown', () => { usingKeyboard = false; }, true);
 
@@ -857,7 +1203,8 @@
 
     if (game.mode === 'playing') {
       if (GAME_KEYS.has(e.code)) e.preventDefault();
-      keys.add(e.code);
+      if ((e.code === 'Tab' || e.code === 'Space') && !e.repeat) triggerSmash();
+      else keys.add(e.code);
       return;
     }
 
@@ -886,6 +1233,10 @@
   function setPointer(e) {
     const rect = canvas.getBoundingClientRect();
     ndc.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+    // Aim with the steady camera, not the shaking one.
+    camera.position.copy(CAMERA_POS);
+    camera.lookAt(CAMERA_TARGET);
+    camera.updateMatrixWorld();
     raycaster.setFromCamera(ndc, camera);
     if (raycaster.ray.intersectPlane(hitPlane, hitPoint)) pointerY = hitPoint.z + H / 2;
   }
@@ -897,14 +1248,19 @@
     if (game.mode !== 'playing') return;
     canvas.setPointerCapture(e.pointerId);
     setPointer(e);
+    if (e.pointerType === 'mouse') triggerSmash(); // click to smash
   });
 
   pauseBtn.addEventListener('click', pause);
+  smashBtn.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    triggerSmash();
+  });
 
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('button');
-    if (!btn || btn === pauseBtn) return;
-    beep(600, 0.03, 0.04);
+    if (!btn || btn === pauseBtn || btn === smashBtn) return;
+    sfx.click();
     if (btn.dataset.difficulty) return startGame(btn.dataset.difficulty);
     switch (btn.dataset.action) {
       case 'play': game.mode = 'menu'; showScreen('difficulty'); break;
@@ -919,7 +1275,7 @@
   window.addEventListener('resize', resize);
 
   // Small hook for automated tests / debugging in the console.
-  window.__game = { game, update, STEP, DIFFICULTIES, setPointer: (y) => { pointerY = y; } };
+  window.__game = { game, update, STEP, DIFFICULTIES, setPointer: (y) => { pointerY = y; }, triggerSmash, hitBall };
 
   resize();
   updateHud();

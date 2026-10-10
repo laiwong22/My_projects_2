@@ -14,11 +14,13 @@
       <div class="side"><span class="label">YOU</span><span id="score-player">0</span></div>
       <div class="side"><span id="score-cpu">0</span><span class="label" id="cpu-label">CPU</span></div>
     </div>
+    <div id="rally"></div>
     <div id="callout" aria-live="polite"></div>
+    <div id="flash"></div>
 
     <section class="screen" id="screen-menu">
       <h1>PICKLE FEVER</h1>
-      <p class="sub" id="menu-sub">You vs CPU &middot; first to 7</p>
+      <p class="sub" id="menu-sub">You vs CPU &middot; first to 11</p>
       <div class="buttons">
         <button data-action="play">Play</button>
         <button data-action="controls">Controls</button>
@@ -40,7 +42,10 @@
       <ul class="controls">
         <li><kbd>W</kbd> / <kbd>S</kbd> or <kbd>&uarr;</kbd> / <kbd>&darr;</kbd> &mdash; move paddle</li>
         <li>Mouse or touch &mdash; drag the paddle</li>
-        <li>Move the paddle as you hit to add spin &mdash; the ball curves that way</li>
+        <li>Move the paddle as you hit to add spin &mdash; the ball swerves and kicks off the bounce</li>
+        <li><kbd>Tab</kbd> / <kbd>Space</kbd>, a mouse click or the SMASH button &mdash; smash</li>
+        <li>The ball speeds up with every hit from the 4th hit of a rally</li>
+        <li>Let it bounce twice on your side and you lose the point</li>
         <li>A shot whose first bounce lands past a sideline is out</li>
         <li><kbd>Esc</kbd> / <kbd>P</kbd> &mdash; pause</li>
         <li><kbd>M</kbd> &mdash; toggle sound</li>
@@ -69,6 +74,7 @@
     </section>
 
     <button id="pause-btn" class="hidden" aria-label="Pause">II</button>
+    <button id="smash-btn" class="hidden">SMASH</button>
   </main>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
