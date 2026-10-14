@@ -163,7 +163,7 @@
     }
   }
 
-  function tone(f0, f1, dur, vol, type = 'sine', delay = 0) {
+  function tone(f0, f1, dur, vol, type = 'sine', delay = 0, dest = master) {
     const a = ctx();
     if (!a) return;
     const t = a.currentTime + delay;
@@ -175,12 +175,12 @@
     gain.gain.setValueAtTime(0.0001, t);
     gain.gain.exponentialRampToValueAtTime(vol, t + 0.005);
     gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    osc.connect(gain).connect(master);
+    osc.connect(gain).connect(dest || master);
     osc.start(t);
     osc.stop(t + dur + 0.02);
   }
 
-  function noise(dur, vol, filter, f0, f1, q = 1, delay = 0) {
+  function noise(dur, vol, filter, f0, f1, q = 1, delay = 0, dest = master) {
     const a = ctx();
     if (!a) return;
     const t = a.currentTime + delay;
@@ -195,7 +195,7 @@
     gain.gain.setValueAtTime(0.0001, t);
     gain.gain.exponentialRampToValueAtTime(vol, t + 0.004);
     gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    src.connect(biquad).connect(gain).connect(master);
+    src.connect(biquad).connect(gain).connect(dest || master);
     src.start(t, Math.random() * 0.5);
     src.stop(t + dur + 0.02);
   }
@@ -238,8 +238,124 @@
       tone(95, 45, 0.2, 0.7);
       tone(95, 45, 0.3, 0.7, 'sine', 0.24);
     },
-    win: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, f, 0.3, 0.22, 'triangle', i * 0.12)),
     lose: () => [392, 330, 262].forEach((f, i) => tone(f, f * 0.98, 0.35, 0.2, 'triangle', i * 0.16)),
+  };
+
+  // ---- Music ----
+  // Songs and jingles play through their own channel, so starting a new game
+  // can cut them off cleanly.
+  let musicBus = null;
+  function music() {
+    const a = ctx();
+    if (!a) return null;
+    if (!musicBus) {
+      musicBus = a.createGain();
+      musicBus.connect(master);
+    }
+    return musicBus;
+  }
+
+  function stopMusic() {
+    if (!musicBus || !audio) return;
+    const bus = musicBus;
+    musicBus = null;
+    bus.gain.setTargetAtTime(0, audio.currentTime, 0.05);
+    setTimeout(() => bus.disconnect(), 500);
+  }
+
+  // A held note with a soft attack and release (tone() is a short pluck).
+  function note(freq, start, dur, vol, type, dest) {
+    const a = ctx();
+    if (!a || !dest) return;
+    const t = a.currentTime + start;
+    const osc = a.createOscillator();
+    const gain = a.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.linearRampToValueAtTime(vol, t + 0.015);
+    gain.gain.setValueAtTime(vol, t + Math.max(0.02, dur * 0.6));
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.connect(gain).connect(dest);
+    osc.start(t);
+    osc.stop(t + dur + 0.02);
+  }
+
+  const hz = (n) => 440 * Math.pow(2, (n - 69) / 12); // MIDI note number to pitch
+  const C3 = 48, C4 = 60, C5 = 72;
+
+  // Drum kit for the music: kick, snare, hi-hat and crash.
+  const drum = {
+    kick: (t, bus) => tone(150, 40, 0.18, 0.55, 'sine', t, bus),
+    snare: (t, bus) => noise(0.12, 0.3, 'bandpass', 2000, 1200, 0.8, t, bus),
+    hat: (t, bus) => noise(0.03, 0.12, 'highpass', 8000, 7000, 1, t, bus),
+    crash: (t, bus) => noise(1.4, 0.3, 'highpass', 6000, 3000, 0.7, t, bus),
+  };
+
+  // Victory song for winning the match: four bars of fanfare in C major with
+  // bass and drums, ending on a big held chord. About six seconds.
+  function victorySong() {
+    const bus = music();
+    if (!bus) return;
+    const e = 0.19; // one eighth note (about 158 bpm)
+    const melody = [ // [note, length in eighths]
+      [C5, 1], [C5 + 4, 1], [C5 + 7, 1], [C5 + 12, 3], [C5 + 11, 1], [C5 + 12, 1],
+      [C5 + 9, 1], [C5 + 7, 1], [C5 + 4, 1], [C5 + 7, 3], [C5 + 5, 1], [C5 + 4, 1],
+      [C5 + 5, 1], [C5 + 9, 1], [C5 + 12, 1], [C5 + 14, 3], [C5 + 12, 1], [C5 + 14, 1],
+      [C5 + 16, 8],
+    ];
+    let t = 0.05;
+    for (const [n, len] of melody) {
+      note(hz(n), t, len * e * 0.95, 0.07, 'square', bus);
+      note(hz(n - 12), t, len * e * 0.95, 0.09, 'triangle', bus);
+      t += len * e;
+    }
+    const bass = [C3, C3 - 5, C3 - 3, C3 + 4, C3 - 7, C3 - 5]; // C, G, A, E, F, G
+    for (let i = 0; i < 24; i++) {
+      const root = bass[Math.floor(i / 4)];
+      note(hz(root + (i % 2 ? 12 : 0)), 0.05 + i * e, e * 0.9, 0.13, 'triangle', bus);
+    }
+    for (let i = 0; i < 24; i++) {
+      const at = 0.05 + i * e;
+      if (i % 4 === 0) drum.kick(at, bus);
+      if (i % 4 === 2) drum.snare(at, bus);
+      drum.hat(at, bus);
+    }
+    // Final bar: crash and a held C major chord, with a sparkle on top.
+    const end = 0.05 + 24 * e;
+    drum.crash(end, bus);
+    drum.kick(end, bus);
+    for (const n of [C3, C4, C4 + 4, C4 + 7, C5]) note(hz(n), end, 8 * e, 0.06, 'sawtooth', bus);
+    [C5 + 12, C5 + 16, C5 + 19, C5 + 24].forEach((n, i) => note(hz(n), end + 0.1 + i * 0.08, 0.5, 0.04, 'triangle', bus));
+  }
+
+  // Quick jingles for winning a point in style.
+  const jingle = {
+    smash() { // big power chord and a rising answer
+      const bus = music();
+      if (!bus) return;
+      drum.kick(0, bus);
+      drum.crash(0, bus);
+      for (const n of [C3, C3 + 7, C4]) note(hz(n), 0, 0.45, 0.09, 'sawtooth', bus);
+      [C4 + 7, C5].forEach((n, i) => note(hz(n), 0.32 + i * 0.12, i ? 0.45 : 0.12, 0.08, 'square', bus));
+    },
+    spin() { // a swirl up and back down, like the ball's curve
+      const bus = music();
+      if (!bus) return;
+      noise(0.5, 0.15, 'bandpass', 400, 3000, 2.5, 0, bus);
+      [C5 + 4, C5 + 7, C5 + 11, C5 + 16, C5 + 11, C5 + 7, C5 + 12].forEach((n, i) =>
+        note(hz(n), i * 0.07, i === 6 ? 0.4 : 0.08, 0.07, 'triangle', bus));
+    },
+    rally() { // a fast run up the scale to a bright chord
+      const bus = music();
+      if (!bus) return;
+      [C5, C5 + 2, C5 + 4, C5 + 7, C5 + 9, C5 + 12].forEach((n, i) => {
+        note(hz(n), i * 0.055, 0.07, 0.07, 'square', bus);
+        drum.hat(i * 0.055, bus);
+      });
+      drum.kick(0.33, bus);
+      for (const n of [C5, C5 + 4, C5 + 7, C5 + 12]) note(hz(n), 0.33, 0.5, 0.05, 'triangle', bus);
+    },
   };
 
   // ---- Screens ----
@@ -285,6 +401,7 @@
   }
 
   function goToMenu() {
+    stopMusic();
     game.mode = 'menu';
     resetRound('player');
     updateHud();
@@ -292,6 +409,7 @@
   }
 
   function startGame(difficulty, server = Math.random() < 0.5 ? 'player' : 'cpu') {
+    stopMusic();
     game.difficulty = difficulty;
     game.score.player = 0;
     game.score.cpu = 0;
@@ -328,7 +446,8 @@
       ? `${game.score.player} – ${game.score.cpu}`
       : `${game.score.player} – ${game.score.cpu} on ${game.difficulty}`;
     document.getElementById('change-difficulty').classList.toggle('hidden', net.active);
-    (won ? sfx.win : sfx.lose)();
+    if (won) victorySong();
+    else sfx.lose();
     showScreen('over');
   }
 
@@ -497,9 +616,19 @@
     updateHud();
     pulse(winner === 'player' ? hud.player : hud.cpu, 'bump');
     const who = winner === 'player' ? 'YOU' : 'CPU';
-    callout(reason ? `${reason} · POINT ${who}` : `POINT ${who}`, winner === 'player');
-    if (reason) sfx.out();
-    (winner === 'player' ? sfx.pointWin : sfx.pointLose)();
+    // Winning a point with your own smash, spin shot, or a fast rally (8+
+    // hits) gets its own jingle and callout.
+    const b = game.ball;
+    const style = winner !== 'player' || b.lastHitter !== 'player' ? null
+      : b.smash ? 'smash' : Math.abs(b.spin) >= 0.2 ? 'spin' : b.hits >= 8 ? 'rally' : null;
+    if (style) {
+      callout(`${style.toUpperCase()} WINNER · POINT YOU`, true);
+      jingle[style]();
+    } else {
+      callout(reason ? `${reason} · POINT ${who}` : `POINT ${who}`, winner === 'player');
+      if (reason) sfx.out();
+      (winner === 'player' ? sfx.pointWin : sfx.pointLose)();
+    }
     screenFlash(winner === 'player' ? 'win' : 'lose');
     fx.shake(4);
     game.nextServer = winner;
@@ -1677,16 +1806,34 @@
     raycaster.setFromCamera(ndc, camera);
     if (raycaster.ray.intersectPlane(hitPlane, hitPoint)) pointerY = hitPoint.z + H / 2;
   }
+  // A tap that just misses the SMASH button is meant as a smash: count it as
+  // one, and don't let that finger move the paddle.
+  const SMASH_SLOP = 40; // px around the button that still counts
+  const smashFingers = new Set();
+  function nearSmash(e) {
+    if (smashBtn.classList.contains('hidden')) return false;
+    const r = smashBtn.getBoundingClientRect();
+    return e.clientX >= r.left - SMASH_SLOP && e.clientX <= r.right + SMASH_SLOP
+      && e.clientY >= r.top - SMASH_SLOP && e.clientY <= r.bottom + SMASH_SLOP;
+  }
   canvas.addEventListener('pointermove', (e) => {
-    if (game.mode !== 'playing') return;
+    if (game.mode !== 'playing' || smashFingers.has(e.pointerId)) return;
     if (e.pointerType === 'mouse' || e.buttons || e.pointerType === 'touch') setPointer(e);
   });
   canvas.addEventListener('pointerdown', (e) => {
     if (game.mode !== 'playing') return;
+    if (e.pointerType !== 'mouse' && nearSmash(e)) {
+      smashFingers.add(e.pointerId);
+      triggerSmash();
+      return;
+    }
     canvas.setPointerCapture(e.pointerId);
     setPointer(e);
     if (e.pointerType === 'mouse') triggerSmash(); // click to smash
   });
+  for (const type of ['pointerup', 'pointercancel']) {
+    canvas.addEventListener(type, (e) => smashFingers.delete(e.pointerId));
+  }
 
   pauseBtn.addEventListener('click', pause);
 

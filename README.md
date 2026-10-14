@@ -48,7 +48,7 @@ The game pauses on its own if you switch tabs.
 
 ## Effects
 
-Screen shake on smashes and points, sparks off the paddle, a shockwave where a smash lands, a ball that glows and lights the court as it speeds up, a speed trail, paddle flashes, and the match-winning point in slow motion. Sounds are synthesized to match: paddle pops that brighten as the rally speeds up, a whoosh for spin, a boom for smashes, buzzers for outs, and chimes for points.
+Screen shake on smashes and points, sparks off the paddle, a shockwave where a smash lands, a ball that glows and lights the court as it speeds up, a speed trail, paddle flashes, and the match-winning point in slow motion. Sounds are synthesized to match: paddle pops that brighten as the rally speeds up, a whoosh for spin, a boom for smashes, buzzers for outs, and chimes for points. Winning a point with a smash, a spin shot or in a fast rally plays its own jingle, and winning the match plays a victory song.
 
 ## The look
 
@@ -62,6 +62,14 @@ Screen shake on smashes and points, sparks off the paddle, a shockwave where a s
 - **Fixed-timestep physics (240 Hz)**: the simulation runs at the same rate on every screen. Each frame draws the ball partway between the last two physics positions, so motion stays smooth at 60, 120 or 144 Hz.
 - **Swept collision**: the game doesn't just move the ball and then check for overlap, which lets fast balls pass through paddles. It works out exactly when the ball will touch a paddle during each step, including while it curves, bounces it at that moment, and uses the rest of the step after the bounce. A stress test of 5,000 max-speed curving shots had zero pass-throughs.
 - Long frames (a hiccup or tab switch) are capped, so the ball never jumps ahead.
+
+## Patch notes
+
+### V5
+
+- **Victory song.** Winning a match (first to 11) plays a short celebration song: a fanfare with bass and drums that ends on a big chord. It stops when you start the next game or go back to the menu.
+- **Winner jingles.** Win a point with your own smash, spin shot, or in a fast rally (8 or more hits) and you get a quick jingle and a callout to match: **SMASH WINNER**, **SPIN WINNER** or **RALLY WINNER**. Each has its own sound: a power chord for a smash, a swirl for spin, a fast run for a rally.
+- **SMASH button fix (phones).** A tap that just misses the SMASH button no longer drags your paddle toward the bottom of the court. It counts as a smash instead.
 
 ## Files
 
