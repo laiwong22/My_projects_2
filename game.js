@@ -93,6 +93,8 @@
   };
   const pauseBtn = document.getElementById('pause-btn');
   const smashBtn = document.getElementById('smash-btn');
+  const slider = document.getElementById('slider');
+  const sliderThumb = document.getElementById('slider-thumb');
   const flashEl = document.getElementById('flash');
   const hud = {
     player: document.getElementById('score-player'),
@@ -245,6 +247,7 @@
     for (const [key, el] of Object.entries(screens)) el.classList.toggle('hidden', key !== name);
     pauseBtn.classList.toggle('hidden', name !== null || net.active);
     smashBtn.classList.toggle('hidden', name !== null || !touchDevice);
+    slider.classList.toggle('hidden', name !== null || !touchDevice);
     const first = name && screens[name].querySelector('button');
     if (first && usingKeyboard) first.focus({ preventScroll: true });
     else if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
@@ -1540,6 +1543,7 @@
     const py = lerp(game.player.prevY, game.player.y, alpha) + PADDLE_H / 2;
     const cy = lerp(game.cpu.prevY, game.cpu.y, alpha) + PADDLE_H / 2;
     playerPaddle.position.set(PLAYER_FACE - 4 - W / 2, paddleHeight('player', bx, bz, frameDt), py - H / 2);
+    if (touchDevice) sliderThumb.style.top = `${(100 * (py - SLIDER_MIN)) / (SLIDER_MAX - SLIDER_MIN)}%`;
     cpuPaddle.position.set(CPU_FACE + 4 - W / 2, paddleHeight('cpu', bx, bz, frameDt), cy - H / 2);
 
     // Online corrections blend in over a moment instead of jumping.
@@ -1685,6 +1689,30 @@
   });
 
   pauseBtn.addEventListener('click', pause);
+
+  // Phone slider: top of the track is the far sideline, bottom the near one,
+  // covering the paddle's whole reach. The paddle follows at full touch speed,
+  // so swiping the slider puts spin on the ball just like swiping the court.
+  const SLIDER_MIN = -PADDLE_REACH + PADDLE_H / 2;
+  const SLIDER_MAX = H + PADDLE_REACH - PADDLE_H / 2;
+  function slide(e) {
+    const rect = slider.getBoundingClientRect();
+    const f = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+    pointerY = SLIDER_MIN + f * (SLIDER_MAX - SLIDER_MIN);
+  }
+  slider.addEventListener('pointerdown', (e) => {
+    if (game.mode !== 'playing') return;
+    e.preventDefault();
+    slider.setPointerCapture(e.pointerId);
+    slider.classList.add('active');
+    slide(e);
+  });
+  slider.addEventListener('pointermove', (e) => {
+    if (game.mode === 'playing' && slider.hasPointerCapture(e.pointerId)) slide(e);
+  });
+  for (const type of ['pointerup', 'pointercancel']) {
+    slider.addEventListener(type, () => slider.classList.remove('active'));
+  }
   smashBtn.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     triggerSmash();

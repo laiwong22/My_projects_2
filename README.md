@@ -28,7 +28,7 @@ There is no game server. The two browsers connect directly to each other with We
 
 | Action | Keys |
 | --- | --- |
-| Move paddle | `W`/`S` or `↑`/`↓`, or move the mouse / drag with a finger |
+| Move paddle | `W`/`S` or `↑`/`↓`, move the mouse, drag on the court, or use the slider on the left on phones |
 | Smash | `Tab` or `Space`, a mouse click, or the **SMASH** button on phones |
 | Pause | `Esc` or `P` (or the pause button on screen) |
 | Toggle sound | `M` |

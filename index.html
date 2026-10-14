@@ -62,7 +62,7 @@
       <h2>Controls</h2>
       <ul class="controls">
         <li><kbd>W</kbd> / <kbd>S</kbd> or <kbd>&uarr;</kbd> / <kbd>&darr;</kbd> &mdash; move paddle</li>
-        <li>Mouse or touch &mdash; drag the paddle</li>
+        <li>Mouse or touch &mdash; drag the paddle, or use the slider on the left on phones</li>
         <li>Move the paddle as you hit to add spin &mdash; the ball swerves and kicks off the bounce</li>
         <li><kbd>Tab</kbd> / <kbd>Space</kbd>, a mouse click or the SMASH button &mdash; smash</li>
         <li>The ball speeds up with every hit from the 4th hit of a rally</li>
@@ -96,6 +96,7 @@
 
     <button id="pause-btn" class="hidden" aria-label="Pause">II</button>
     <button id="smash-btn" class="hidden">SMASH</button>
+    <div id="slider" class="hidden" aria-hidden="true"><div id="slider-thumb"></div></div>
   </main>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
