@@ -59,6 +59,7 @@
 
   const PADDLE_REACH = 50; // how far past a sideline a paddle can step
   const OFF_FIELD = 130; // a ball this far past a sideline after landing in is gone
+  const REACH_MARGIN = 8; // spin never takes a ball further out than paddle reach minus this
 
   const DIFFICULTIES = {
     easy:   { cpuSpeed: 290, reaction: 0.22, error: 58, ballSpeed: 380, chaseOut: 0.35, smash: 0.03 },
@@ -118,7 +119,7 @@
     ball: {
       x: W / 2, y: H / 2, z: HIT_HEIGHT, vx: 0, vy: 0, vz: 0, ay: 0, g: MIN_GRAVITY, e: RESTITUTION,
       prevX: W / 2, prevY: H / 2, prevZ: HIT_HEIGHT,
-      speed: 0, rallySpeed: 0, hits: 0, spin: 0, smash: false,
+      speed: 0, rallySpeed: 0, hits: 0, spin: 0, smash: false, kick: 0,
       bounced: false, bounces: 0, rolling: false, lastHitter: null,
     },
     score: { player: 0, cpu: 0 },
@@ -409,6 +410,7 @@
     b.rolling = false;
     b.bounced = false;
     b.bounces = 0;
+    b.kick = 0;
   }
 
   function hitBall(side, paddleY, paddleVel, smash) {
@@ -444,6 +446,7 @@
     b.smash = smash;
     b.e = smash ? SMASH_RESTITUTION : RESTITUTION;
     launch(dir, xSpeed, landX, aimY + curve * CURVE_NET, curve, smash ? SMASH_NET_CLEAR : NET_CLEAR);
+    b.kick = reachableKick(dir, spin * BOUNCE_KICK);
     b.lastHitter = side;
     hitFeedback(side);
     if (side === 'player') net.sendHit();
@@ -566,7 +569,7 @@
       s.vx *= BOUNCE_FRICTION;
       s.vy *= BOUNCE_FRICTION;
       s.bounces++;
-      if (s.bounces === 1) s.vy += s.spin * BOUNCE_KICK; // sidespin kicks off the court
+      if (s.bounces === 1) s.vy += s.kick; // sidespin kicks off the court
       s.ay *= SPIN_AFTER_BOUNCE;
       if (s.vz < 25) { s.vz = 0; s.rolling = true; }
       return true;
@@ -604,6 +607,25 @@
 
   // Look ahead to where the ball will be when it reaches the CPU's paddle,
   // and whether its first bounce will land out.
+  // The sideways kick a spinning ball takes off its first bounce, limited so
+  // that when it reaches the receiver's paddle it is still within their
+  // reach (at full stretch if need be). Spin bends the ball; it can't make a
+  // ball that lands in impossible to return.
+  const kickProbe = {};
+  function reachableKick(dir, wanted) {
+    const s = Object.assign(kickProbe, game.ball);
+    s.kick = 0;
+    let bounced = false;
+    for (let i = 0; i < 2400 && !bounced; i++) bounced = advanceState(s, STEP);
+    if (!bounced || s.y < 0 || s.y > H) return wanted; // lands out: the point is over anyway
+    const lineX = dir > 0 ? CPU_FACE - BALL_R : PLAYER_FACE + BALL_R;
+    const t = (lineX - s.x) / s.vx;
+    if (!(t > 0)) return wanted;
+    const drift = s.y + s.vy * t + 0.5 * s.ay * t * t; // where it arrives with no kick
+    const lo = -PADDLE_REACH + REACH_MARGIN, hi = H + PADDLE_REACH - REACH_MARGIN;
+    return Math.max((lo - drift) / t, Math.min((hi - drift) / t, wanted));
+  }
+
   const lookahead = {};
   function predictForCpu() {
     const s = Object.assign(lookahead, game.ball);
@@ -793,13 +815,16 @@
   }
 
   function peerError(err) {
-    if (err && err.type === 'peer-unavailable') onlineFailed('No game found with that code. Check it and try again.');
-    else onlineFailed("Couldn't reach the online service.");
+    if (err && err.type === 'browser-incompatible') onlineFailed("This browser can't play online. Open the link in Safari or Chrome.");
+    else onlineFailed("Couldn't reach the online service. Check your connection and try again.");
   }
+
+  // Problems with the link to the PeerJS service that a reconnect can fix.
+  const TRANSIENT = new Set(['network', 'server-error', 'socket-error', 'socket-closed', 'disconnected']);
 
   const mirror = (s) => ({
     x: W - s.x, y: H - s.y, z: s.z, vx: -s.vx, vy: -s.vy, vz: s.vz, ay: -s.ay, g: s.g, e: s.e,
-    speed: s.speed, rallySpeed: s.rallySpeed, hits: s.hits, spin: -s.spin, smash: s.smash,
+    speed: s.speed, rallySpeed: s.rallySpeed, hits: s.hits, spin: -s.spin, smash: s.smash, kick: -s.kick,
     bounces: s.bounces, bounced: s.bounced, rolling: s.rolling,
   });
 
@@ -815,7 +840,9 @@
     lastSend: 0,
     lastPing: 0,
     lastHeard: 0, // when anything last arrived from the other player
-    attempts: 0, // counts join attempts, so a stale timeout can't cancel a newer one
+    attempts: 0, // counts join attempts, so a stale retry can't touch a newer one
+    joinCode: null,
+    joinDeadline: 0,
     vis: { x: 0, y: 0, z: 0 }, // visual correction still being blended out
 
     send(msg) {
@@ -824,33 +851,58 @@
       }
     },
 
+    // PeerJS's own STUN and relay servers, plus extra public STUN servers,
+    // which help two phones on different networks find a route to each other.
+    peerOptions() {
+      return Object.assign({
+        debug: 0,
+        config: {
+          iceServers: [
+            { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] },
+            { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' },
+          ],
+          sdpSemantics: 'unified-plan',
+        },
+      }, window.PEER_OPTIONS);
+    },
+
     host() {
       net.leave();
       net.role = 'host';
       onlineStatus.textContent = 'Setting up…';
       loadPeerJs().then(() => {
+        if (net.role !== 'host' || net.peer) return;
         const code = Array.from({ length: 5 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join('');
-        const peer = new window.Peer(PEER_PREFIX + code.toLowerCase(), Object.assign({ debug: 0 }, window.PEER_OPTIONS));
+        const peer = new window.Peer(PEER_PREFIX + code.toLowerCase(), net.peerOptions());
         net.peer = peer;
         peer.on('open', () => {
+          if (net.code) return; // reconnected after a drop; same code as before
           net.code = code;
           document.getElementById('room-code').textContent = code;
           document.getElementById('room-link').textContent = net.link();
           onlineChoices.classList.add('hidden');
           onlineWait.classList.remove('hidden');
-          onlineStatus.textContent = 'Send your friend the invite, then wait here. The match starts when they join.';
+          onlineStatus.textContent = 'Send your friend the invite, then come back to this screen. The match starts when they join.';
         });
         peer.on('connection', (conn) => {
-          if (net.conn) { conn.on('open', () => conn.close()); return; } // already have an opponent
+          if (net.conn && net.conn.open) { // already playing someone
+            conn.on('open', () => { conn.send({ t: 'busy' }); setTimeout(() => conn.close(), 300); });
+            return;
+          }
+          if (net.conn) try { net.conn.close(); } catch (_) { /* replace a stalled attempt */ }
           net.attach(conn);
         });
         peer.on('error', (err) => {
-          if (err.type === 'unavailable-id') net.host(); // code taken; pick another
-          else if (!net.active) peerError(err);
+          if (net.peer !== peer || net.active) return;
+          if (err.type === 'unavailable-id' && !net.code) net.host(); // code taken; pick another
+          else if (TRANSIENT.has(err.type) && net.code) { /* keep the room; we reconnect on our own */ }
+          else peerError(err);
         });
       }).catch(() => onlineFailed("Couldn't load online play."));
     },
 
+    // Joining keeps trying for a minute, so it still works if the host is
+    // briefly away from the game (say, sending you the invite).
     join(raw) {
       const code = String(raw || '').trim().toUpperCase();
       if (code.length !== 5) {
@@ -859,41 +911,80 @@
       }
       net.leave();
       net.role = 'guest';
-      onlineStatus.textContent = `Joining ${code}…`;
+      net.joinCode = code;
+      net.joinDeadline = performance.now() + 60000;
       const attempt = ++net.attempts;
-      setTimeout(() => {
-        if (net.attempts === attempt && net.role === 'guest' && !net.active) {
-          onlineFailed("Couldn't connect to your friend. Check you're both online and try again.");
-        }
-      }, 15000);
+      onlineStatus.textContent = `Joining ${code}…`;
       loadPeerJs().then(() => {
-        const peer = new window.Peer(Object.assign({ debug: 0 }, window.PEER_OPTIONS));
+        if (net.attempts !== attempt || net.role !== 'guest') return;
+        const peer = new window.Peer(net.peerOptions());
         net.peer = peer;
-        peer.on('open', () => net.attach(peer.connect(PEER_PREFIX + code.toLowerCase(), { reliable: true })));
-        peer.on('error', (err) => { if (!net.active) peerError(err); });
+        let opened = false;
+        peer.on('open', () => {
+          if (opened) return; // reconnected after a drop; the retry loop carries on
+          opened = true;
+          net.connectTo(attempt);
+        });
+        peer.on('error', (err) => {
+          if (net.attempts !== attempt || net.peer !== peer || net.active) return;
+          if (err.type === 'peer-unavailable') {
+            net.retryJoin(attempt, `Looking for game ${code}… Make sure your friend has the game open on the code screen.`);
+          } else if (TRANSIENT.has(err.type) && opened) {
+            /* we reconnect on our own and keep retrying */
+          } else {
+            peerError(err);
+          }
+        });
       }).catch(() => onlineFailed("Couldn't load online play."));
+    },
+
+    connectTo(attempt) {
+      if (net.attempts !== attempt || net.active || !net.peer || net.peer.destroyed) return;
+      if (net.peer.disconnected) { net.retryJoin(attempt); return; } // wait for the reconnect
+      const conn = net.peer.connect(PEER_PREFIX + net.joinCode.toLowerCase(), { reliable: true });
+      net.attach(conn);
+      // An attempt that hasn't opened in 10 seconds is abandoned and retried.
+      setTimeout(() => {
+        if (net.attempts === attempt && net.conn === conn && !conn.open) {
+          net.conn = null;
+          try { conn.close(); } catch (_) { /* never opened */ }
+          net.retryJoin(attempt);
+        }
+      }, 10000);
+    },
+
+    retryJoin(attempt, message) {
+      if (net.attempts !== attempt || net.active || net.role !== 'guest') return;
+      if (performance.now() > net.joinDeadline) {
+        onlineFailed(`Couldn't connect to game ${net.joinCode}. Check the code, make sure your friend still has the game open, and try again.`);
+        return;
+      }
+      if (message) onlineStatus.textContent = message;
+      setTimeout(() => net.connectTo(attempt), 2500);
     },
 
     attach(conn) {
       net.conn = conn;
       conn.on('open', () => {
+        if (net.conn !== conn) return;
         net.lastHeard = performance.now();
         onlineStatus.textContent = 'Connected. Starting…';
         if (net.role === 'host') net.rematch();
       });
-      conn.on('data', net.receive);
-      conn.on('close', net.closed);
-      conn.on('error', net.closed);
+      conn.on('data', (m) => { if (net.conn === conn) net.receive(m); });
+      conn.on('close', () => net.closed(conn));
+      conn.on('error', () => net.closed(conn));
     },
 
-    closed() {
-      if (!net.conn) return;
+    closed(conn) {
+      if (!net.conn || (conn && conn !== net.conn)) return;
       net.conn = null;
-      const wasPlaying = net.active;
-      net.leave();
-      if (wasPlaying) {
+      if (net.active) {
+        net.leave();
         game.mode = 'menu';
         showOnline('Your friend left the game.');
+      } else if (net.role === 'guest') {
+        net.retryJoin(net.attempts); // the host keeps waiting; the guest tries again
       }
     },
 
@@ -907,6 +998,7 @@
       net.active = false;
       net.role = null;
       net.code = null;
+      net.attempts++;
     },
 
     link() {
@@ -954,7 +1046,7 @@
       const b = game.ball;
       net.send({ t: 'hit', b: {
         x: b.x, y: b.y, z: b.z, vx: b.vx, vy: b.vy, vz: b.vz, ay: b.ay, g: b.g, e: b.e,
-        speed: b.speed, rallySpeed: b.rallySpeed, hits: b.hits, spin: b.spin, smash: b.smash,
+        speed: b.speed, rallySpeed: b.rallySpeed, hits: b.hits, spin: b.spin, smash: b.smash, kick: b.kick,
         bounces: b.bounces, bounced: b.bounced, rolling: b.rolling,
       } });
     },
@@ -963,6 +1055,7 @@
       net.lastHeard = performance.now();
       switch (m.t) {
         case 'bye': net.closed(); break;
+        case 'busy': onlineFailed('That game already has two players.'); break;
         case 'start': net.start(m.server === 'sender' ? 'cpu' : 'player'); break;
         case 'rematch': if (net.role === 'host' && game.mode === 'over') net.rematch(); break;
         case 'p': net.oppTargetY = H - m.y - PADDLE_H; break;
@@ -1031,6 +1124,15 @@
   }
 
   window.addEventListener('pagehide', () => net.leave());
+
+  // Phones cut the link to the PeerJS service while the browser is in the
+  // background. Reconnect (same code) every few seconds and on coming back.
+  function reregister() {
+    const p = net.peer;
+    if (p && p.disconnected && !p.destroyed) try { p.reconnect(); } catch (_) { /* try again later */ }
+  }
+  setInterval(reregister, 3000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) reregister(); });
 
   document.getElementById('join-form').addEventListener('submit', (e) => {
     e.preventDefault();
