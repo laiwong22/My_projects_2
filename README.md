@@ -15,6 +15,8 @@ Main menu → **Play vs CPU** → choose **Easy / Medium / Hard**, or **Play a f
 2. The other player opens the invite link (or taps **Play a friend**, types the code and taps **Join**).
 3. The match starts as soon as they connect. Each of you sees yourself on the left.
 
+If the host steps away to send the invite, the game reconnects with the same code when they come back, and a friend who is joining keeps trying for up to a minute. Open the invite in Safari or Chrome; some in-app browsers (inside social apps) can't play online.
+
 There is no game server. The two browsers connect directly to each other with WebRTC, using [PeerJS](https://peerjs.com/) (loaded from a CDN). PeerJS's free public service only introduces the two players, and its free relay steps in when a network blocks direct connections.
 
 - Online play works on the website (GitHub Pages). It doesn't work inside the claude.ai page, which blocks these connections.
@@ -36,7 +38,7 @@ The game pauses on its own if you switch tabs.
 ## Rules and physics
 
 - **The ball bounces.** Every shot clears the net and its first bounce lands in the opponent's court, between the kitchen line and the baseline. It then bounces up toward the other paddle.
-- **Spin.** Move your paddle as you hit to put sidespin on the ball: it swings out one way, bends back across in the direction you swiped, then kicks sideways off the bounce. Gentle movement adds a little; a fast swipe with the mouse or a finger bends it hard. An amber trail shows a spinning ball.
+- **Spin.** Move your paddle as you hit to put sidespin on the ball: it swings out one way, bends back across in the direction you swiped, then kicks sideways off the bounce. Gentle movement adds a little; a fast swipe with the mouse or a finger bends it hard. An amber trail shows a spinning ball. However hard the spin, a ball that lands in always reaches the receiver within paddle reach, at full stretch if need be.
 - **Smash.** Press smash just before the ball reaches you (your paddle glows while it's primed) for a fast, deep, low shot that skids off the court. The CPU smashes now and then too, more often on Hard.
 - **Rally speed.** The first three hits of a rally stay at the starting speed; from the 4th hit on, every hit is faster, on every difficulty.
 - **Double bounce.** If the ball bounces twice on your side before you hit it, you lose the point.
